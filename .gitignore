@@ -20,5 +20,8 @@ build/
 temp/
 *.zip
 
+# Test coverage
+coverage/
+
 # Local scratch
 submission.json

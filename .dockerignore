@@ -11,3 +11,7 @@ temp
 Dockerfile
 .dockerignore
 README.md
+tests
+jest.config.js
+coverage
+.github
