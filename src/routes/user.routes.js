@@ -5,6 +5,7 @@ const { verifyToken, authorizeRoles } = require('../middleware/auth.middleware')
 const userController = require('../controllers/user.controller');
 
 router.get('/me', verifyToken, authController.me);
+router.get('/me/stats', verifyToken, userController.getMyStats);
 
 router.get('/', verifyToken, authorizeRoles('Admin'), userController.getAllUsers);
 router.get('/:id', verifyToken, userController.getUserById);

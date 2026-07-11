@@ -1,4 +1,6 @@
 const User = require('../models/User');
+const Problem = require('../models/Problem');
+const Submission = require('../models/Submission');
 
 // True when the requester is acting on their own record or is an Admin.
 function canManage(req) {
@@ -6,6 +8,66 @@ function canManage(req) {
     const isAdmin = req.user && Array.isArray(req.user.roles) && req.user.roles.includes('Admin');
     return { isSelf, isAdmin, allowed: isSelf || isAdmin };
 }
+
+// Aggregate the current user's progress from their submissions.
+exports.getMyStats = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const [totalProblems, problems, subs] = await Promise.all([
+            Problem.countDocuments(),
+            Problem.find({}, 'difficulty').lean(),
+            Submission.find({ userId }, 'problemId status').lean(),
+        ]);
+
+        const difficultyById = new Map(
+            problems.map((p) => [String(p._id), p.difficulty || 'Medium'])
+        );
+
+        const solved = new Set();
+        const attempted = new Set();
+        let acceptedSubmissions = 0;
+        for (const sub of subs) {
+            const pid = String(sub.problemId);
+            if (sub.status === 'Accepted') {
+                solved.add(pid);
+                acceptedSubmissions += 1;
+            } else {
+                attempted.add(pid);
+            }
+        }
+        // A solved problem is not also "attempted".
+        for (const pid of solved) {
+            attempted.delete(pid);
+        }
+
+        const byDifficulty = {
+            Easy: { solved: 0, total: 0 },
+            Medium: { solved: 0, total: 0 },
+            Hard: { solved: 0, total: 0 },
+        };
+        for (const p of problems) {
+            const d = byDifficulty[p.difficulty] ? p.difficulty : 'Medium';
+            byDifficulty[d].total += 1;
+        }
+        for (const pid of solved) {
+            const d = difficultyById.get(pid);
+            if (d && byDifficulty[d]) {
+                byDifficulty[d].solved += 1;
+            }
+        }
+
+        res.json({
+            totalProblems,
+            solved: solved.size,
+            attempted: attempted.size,
+            totalSubmissions: subs.length,
+            acceptedSubmissions,
+            byDifficulty,
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error' });
+    }
+};
 
 exports.getAllUsers = async (req, res) => {
     try {
