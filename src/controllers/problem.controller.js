@@ -1,5 +1,6 @@
 const Problem = require('../models/Problem');
 const Testcase = require('../models/Testcase');
+const Submission = require('../models/Submission');
 const { slugify, generateUniqueSlug } = require('../utils/slug');
 const { sendMongooseError } = require('../utils/mongoErrors');
 
@@ -57,7 +58,38 @@ exports.createProblem = async (req, res) => {
 
 exports.getProblems = async (req, res) => {
   try {
-    const problems = await Problem.find({}, 'title slug difficulty tags');
+    const problems = await Problem.find({}, 'title slug difficulty tags').lean();
+
+    // When authenticated (optionalAuth), annotate each problem with the user's
+    // per-problem status: solved (has an Accepted submission), attempted (has
+    // submissions but none accepted), or unsolved.
+    if (req.user && req.user.id) {
+      const subs = await Submission.find(
+        { userId: req.user.id },
+        'problemId status'
+      ).lean();
+
+      const solved = new Set();
+      const attempted = new Set();
+      for (const sub of subs) {
+        const pid = String(sub.problemId);
+        if (sub.status === 'Accepted') {
+          solved.add(pid);
+        } else {
+          attempted.add(pid);
+        }
+      }
+
+      for (const problem of problems) {
+        const pid = String(problem._id);
+        problem.status = solved.has(pid)
+          ? 'solved'
+          : attempted.has(pid)
+          ? 'attempted'
+          : 'unsolved';
+      }
+    }
+
     res.json(problems);
   } catch (error) {
     res.status(500).json({ message: 'Server error' });
