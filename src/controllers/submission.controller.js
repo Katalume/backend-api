@@ -94,7 +94,7 @@ exports.getSubmissions = async (req, res) => {
     }
     const limit = Math.min(Number(req.query.limit) || 50, 100);
     const submissions = await Submission.find(filter)
-      .populate('problemId', 'title slug')
+      .populate('problemId', 'title slug difficulty')
       .sort({ createdAt: -1 })
       .limit(limit);
     res.json(submissions);
