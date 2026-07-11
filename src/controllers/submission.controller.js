@@ -87,9 +87,16 @@ exports.submitCode = async (req, res) => {
 
 exports.getSubmissions = async (req, res) => {
   try {
-    const submissions = await Submission.find({ userId: req.user.id })
-      .populate('problemId', 'title')
-      .sort({ createdAt: -1 });
+    const filter = { userId: req.user.id };
+    // Optional ?problemId= to fetch history for a single problem.
+    if (req.query.problemId) {
+      filter.problemId = req.query.problemId;
+    }
+    const limit = Math.min(Number(req.query.limit) || 50, 100);
+    const submissions = await Submission.find(filter)
+      .populate('problemId', 'title slug')
+      .sort({ createdAt: -1 })
+      .limit(limit);
     res.json(submissions);
   } catch (error) {
     res.status(500).json({ message: 'Server error' });
