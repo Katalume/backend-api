@@ -6,6 +6,7 @@ const userController = require('../controllers/user.controller');
 
 router.get('/me', verifyToken, authController.me);
 router.get('/me/stats', verifyToken, userController.getMyStats);
+router.get('/me/progress', verifyToken, userController.getMyProgress);
 
 router.get('/', verifyToken, authorizeRoles('Admin'), userController.getAllUsers);
 router.get('/:id', verifyToken, userController.getUserById);
