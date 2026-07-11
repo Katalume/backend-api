@@ -13,8 +13,24 @@ exports.createContest = async (req, res) => {
 
 exports.getAllContests = async (req, res) => {
     try {
-        const contests = await Contest.find().sort({ startTime: -1 });
-        res.json(contests);
+        const contests = await Contest.find()
+            .sort({ startTime: -1 })
+            .select('title description startTime endTime problems participants')
+            .lean();
+
+        // Return counts rather than the full participant/problem id arrays,
+        // so we don't leak every participant's user id to every client.
+        const list = contests.map((contest) => ({
+            _id: contest._id,
+            title: contest.title,
+            description: contest.description,
+            startTime: contest.startTime,
+            endTime: contest.endTime,
+            problemCount: Array.isArray(contest.problems) ? contest.problems.length : 0,
+            participantCount: Array.isArray(contest.participants) ? contest.participants.length : 0,
+        }));
+
+        res.json(list);
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
