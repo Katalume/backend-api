@@ -1,8 +1,12 @@
 # MLBoost backend-api
 
-Node.js / Express API for MLBoost — a practice platform for machine-learning and
-data-science problems ("LeetCode for ML"). Handles auth, problems, contests, and
-running/judging user code submissions through [Judge0](https://judge0.com/).
+Node.js / Express API for **MLBoost** — an interactive platform for practicing
+machine learning and data science, think **LeetCode meets Kaggle** for ML
+students. Users solve ML/DS problems in the browser, run and submit code against
+hidden test cases, join contests, and track progress.
+
+This service handles auth, problems, contests, leaderboards, and the
+running/judging of user code submissions through [Judge0](https://judge0.com/).
 
 ## Stack
 
