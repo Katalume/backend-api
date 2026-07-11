@@ -17,6 +17,22 @@ exports.verifyToken = (req, res, next) => {
     }
 };
 
+// Sets req.user when a valid token is present, but never rejects the request.
+// Used on public endpoints that return richer data for authenticated users.
+exports.optionalAuth = (req, res, next) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (token) {
+        try {
+            req.user = verifyAccessToken(token);
+        } catch (error) {
+            // Invalid/expired token — proceed as an anonymous request.
+        }
+    }
+    next();
+};
+
 exports.authorizeRoles = (...roles) => {
     return (req, res, next) => {
         if (!req.user || !req.user.roles) {
