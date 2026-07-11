@@ -57,6 +57,30 @@ describe('contests', () => {
         expect(res.status).toBe(400);
     });
 
+    test('GET /contests returns a lean list with counts, not raw participant ids', async () => {
+        const token = await adminToken();
+        const created = await request(app)
+            .post('/api/contests')
+            .set('Authorization', `Bearer ${token}`)
+            .send(validContest);
+
+        const { token: userTok } = await signup({ username: 'player', email: 'player@example.com' });
+        await request(app)
+            .post(`/api/contests/${created.body._id}/register`)
+            .set('Authorization', `Bearer ${userTok}`);
+
+        const res = await request(app).get('/api/contests');
+        expect(res.status).toBe(200);
+        expect(res.body.length).toBe(1);
+        const contest = res.body[0];
+        expect(contest.title).toBe(validContest.title);
+        expect(contest.participantCount).toBe(1);
+        expect(contest.problemCount).toBe(0);
+        // The raw participant/problem arrays must not be exposed.
+        expect(contest.participants).toBeUndefined();
+        expect(contest.problems).toBeUndefined();
+    });
+
     test('a user can register once for a contest', async () => {
         const token = await adminToken();
         const created = await request(app)
