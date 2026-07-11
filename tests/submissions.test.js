@@ -93,6 +93,29 @@ describe('submissions', () => {
             String(p1._id)
         );
     });
+
+    test('populates problem title, slug, and difficulty for the frontend', async () => {
+        const token = await signup();
+        const problem = await Problem.create({
+            title: 'Populated',
+            slug: 'populated',
+            description: 'desc',
+            difficulty: 'Hard',
+        });
+        await Testcase.create({ problemId: problem._id, input: '1', expectedOutput: '1' });
+
+        await request(app)
+            .post('/api/submissions')
+            .set('Authorization', `Bearer ${token}`)
+            .send({ problemId: problem._id, code: 'print(1)', languageId: 71 });
+
+        const res = await request(app)
+            .get('/api/submissions')
+            .set('Authorization', `Bearer ${token}`);
+        expect(res.body[0].problemId.title).toBe('Populated');
+        expect(res.body[0].problemId.slug).toBe('populated');
+        expect(res.body[0].problemId.difficulty).toBe('Hard');
+    });
 });
 
 describe('unknown routes', () => {
