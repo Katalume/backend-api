@@ -1,4 +1,5 @@
 const Contest = require('../models/Contest');
+const { sendMongooseError } = require('../utils/mongoErrors');
 
 exports.createContest = async (req, res) => {
     try {
@@ -6,7 +7,7 @@ exports.createContest = async (req, res) => {
         await contest.save();
         res.status(201).json(contest);
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        sendMongooseError(res, err);
     }
 };
 
