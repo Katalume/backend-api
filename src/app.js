@@ -2,7 +2,9 @@ const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 const cookieParser = require("cookie-parser");
+const mongoose = require('mongoose');
 const connectDB = require('./config/db');
+const logger = require('./utils/logger');
 const { BACKEND_PORT, CORS_ORIGIN } = require('./config/env');
 const { apiLimiter, authLimiter, executionLimiter } = require('./middleware/rateLimiter');
 
@@ -53,7 +55,7 @@ app.use((req, res) => {
 // Global error handler
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
-    console.error('Unhandled error:', err);
+    logger.error('Unhandled error:', err);
     const status = err.status || 500;
     res.status(status).json({
         message: status === 500 ? 'Internal Server Error' : err.message,
@@ -63,13 +65,33 @@ app.use((err, req, res, next) => {
 // Start the server only after the database connection is established.
 async function start() {
     await connectDB();
-    app.listen(BACKEND_PORT, () => {
-        console.log(`server running on the port ${BACKEND_PORT}`);
+    const server = app.listen(BACKEND_PORT, () => {
+        logger.info(`Server running on port ${BACKEND_PORT}`);
     });
+
+    // Graceful shutdown: stop accepting connections, then close the DB.
+    const shutdown = (signal) => {
+        logger.info(`${signal} received, shutting down gracefully`);
+        server.close(async () => {
+            await mongoose.connection.close();
+            logger.info('Closed server and database connections');
+            process.exit(0);
+        });
+        // Force-exit if graceful shutdown hangs.
+        setTimeout(() => {
+            logger.error('Could not close connections in time, forcing exit');
+            process.exit(1);
+        }, 10000).unref();
+    };
+
+    ['SIGTERM', 'SIGINT'].forEach((sig) => process.on(sig, () => shutdown(sig)));
 }
 
 if (require.main === module) {
-    start();
+    start().catch((err) => {
+        logger.error('Failed to start server:', err);
+        process.exit(1);
+    });
 }
 
 module.exports = app;
