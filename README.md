@@ -62,6 +62,18 @@ The vendored config lives in `judge0/`. Set a real `AUTHN_TOKEN` in `judge0.conf
 and the matching `JUDGE0_AUTH_TOKEN` in your `.env`, and do not expose Judge0's
 port publicly — it runs untrusted code.
 
+## Testing
+
+```bash
+npm test
+```
+
+Integration tests run with Jest + supertest against an in-memory MongoDB
+(`mongodb-memory-server`) — no external database needed. Judge0 is mocked, so
+tests never execute real code. Coverage includes the auth flow, authorization
+(ownership/admin checks), input validation, the execution guard, and the
+submissions endpoint. CI runs the suite on every push/PR to `main`.
+
 ## Docker
 
 ```bash
