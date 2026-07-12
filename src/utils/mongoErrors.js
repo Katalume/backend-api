@@ -3,6 +3,9 @@
  * Validation errors -> 400, duplicate-key errors -> 409, otherwise 500.
  */
 function sendMongooseError(res, error) {
+    if (error && error.name === 'CastError') {
+        return res.status(400).json({ message: `Invalid ${error.path}` });
+    }
     if (error && error.name === 'ValidationError') {
         return res.status(400).json({ message: error.message });
     }

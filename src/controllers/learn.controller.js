@@ -25,6 +25,7 @@ exports.createTrack = async (req, res) => {
             description: track.description,
             tags: track.tags,
             lessons: track.lessons,
+            order: track.order,
             lessonCount: track.lessons.length,
         });
     } catch (err) {
@@ -43,10 +44,50 @@ exports.getTracks = async (req, res) => {
             description: track.description,
             tags: track.tags || [],
             lessons: track.lessons || [],
+            order: track.order,
             lessonCount: (track.lessons || []).length,
         }));
         res.json(result);
     } catch (err) {
         res.status(500).json({ message: 'Server error' });
+    }
+};
+
+exports.updateTrack = async (req, res) => {
+    try {
+        const allowedFields = ['title', 'description', 'tags', 'lessons', 'order'];
+        const updates = {};
+        for (const field of allowedFields) {
+            if (Object.prototype.hasOwnProperty.call(req.body, field)) {
+                updates[field] = req.body[field];
+            }
+        }
+        const track = await LearningTrack.findByIdAndUpdate(req.params.id, updates, {
+            new: true,
+            runValidators: true,
+        });
+        if (!track) return res.status(404).json({ message: 'Learning track not found' });
+        res.json({
+            id: track._id,
+            slug: track.slug,
+            title: track.title,
+            description: track.description,
+            tags: track.tags,
+            lessons: track.lessons,
+            order: track.order,
+            lessonCount: track.lessons.length,
+        });
+    } catch (err) {
+        sendMongooseError(res, err);
+    }
+};
+
+exports.deleteTrack = async (req, res) => {
+    try {
+        const track = await LearningTrack.findByIdAndDelete(req.params.id);
+        if (!track) return res.status(404).json({ message: 'Learning track not found' });
+        res.json({ message: 'Learning track deleted' });
+    } catch (err) {
+        sendMongooseError(res, err);
     }
 };

@@ -101,3 +101,50 @@ describe('contests', () => {
         expect(second.status).toBe(400);
     });
 });
+
+describe('contest management', () => {
+    test('update and delete require authentication and Admin', async () => {
+        const id = '507f1f77bcf86cd799439011';
+        expect((await request(app).put(`/api/contests/${id}`).send(validContest)).status).toBe(401);
+        expect((await request(app).delete(`/api/contests/${id}`)).status).toBe(401);
+        const { token } = await signup();
+        expect((await request(app).put(`/api/contests/${id}`).set('Authorization', `Bearer ${token}`).send(validContest)).status).toBe(403);
+        expect((await request(app).delete(`/api/contests/${id}`).set('Authorization', `Bearer ${token}`)).status).toBe(403);
+    });
+
+    test('an admin updates and deletes a contest', async () => {
+        const token = await adminToken();
+        const created = await request(app)
+            .post('/api/contests')
+            .set('Authorization', `Bearer ${token}`)
+            .send(validContest);
+        const updated = await request(app)
+            .put(`/api/contests/${created.body._id}`)
+            .set('Authorization', `Bearer ${token}`)
+            .send({ title: 'Updated Contest', participants: ['507f1f77bcf86cd799439011'] });
+        expect(updated.status).toBe(200);
+        expect(updated.body.title).toBe('Updated Contest');
+        expect(updated.body.participants).toEqual([]);
+        expect((await request(app).delete(`/api/contests/${created.body._id}`).set('Authorization', `Bearer ${token}`)).status).toBe(200);
+        expect((await request(app).delete(`/api/contests/${created.body._id}`).set('Authorization', `Bearer ${token}`)).status).toBe(404);
+    });
+
+    test('returns 404 for an unknown contest and 400 for invalid content', async () => {
+        const token = await adminToken();
+        const missing = await request(app)
+            .put('/api/contests/507f1f77bcf86cd799439011')
+            .set('Authorization', `Bearer ${token}`)
+            .send({ title: 'Missing' });
+        expect(missing.status).toBe(404);
+
+        const created = await request(app)
+            .post('/api/contests')
+            .set('Authorization', `Bearer ${token}`)
+            .send(validContest);
+        const invalid = await request(app)
+            .put(`/api/contests/${created.body._id}`)
+            .set('Authorization', `Bearer ${token}`)
+            .send({ startTime: 'not-a-date' });
+        expect(invalid.status).toBe(400);
+    });
+});

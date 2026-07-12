@@ -56,6 +56,47 @@ exports.createProblem = async (req, res) => {
   }
 };
 
+exports.updateProblem = async (req, res) => {
+  try {
+    const allowedFields = [
+      'title',
+      'description',
+      'difficulty',
+      'tags',
+      'starterCode',
+      'constraints',
+      'editorial',
+      'sampleTestCases',
+    ];
+    const updates = {};
+    for (const field of allowedFields) {
+      if (Object.prototype.hasOwnProperty.call(req.body, field)) {
+        updates[field] = req.body[field];
+      }
+    }
+
+    const problem = await Problem.findByIdAndUpdate(req.params.id, updates, {
+      new: true,
+      runValidators: true,
+    });
+    if (!problem) return res.status(404).json({ message: 'Problem not found' });
+    res.json(problem);
+  } catch (error) {
+    sendMongooseError(res, error);
+  }
+};
+
+exports.deleteProblem = async (req, res) => {
+  try {
+    const problem = await Problem.findByIdAndDelete(req.params.id);
+    if (!problem) return res.status(404).json({ message: 'Problem not found' });
+    await Testcase.deleteMany({ problemId: problem._id });
+    res.json({ message: 'Problem deleted' });
+  } catch (error) {
+    sendMongooseError(res, error);
+  }
+};
+
 exports.getProblems = async (req, res) => {
   try {
     const problems = await Problem.find({}, 'title slug difficulty tags').lean();
