@@ -1,8 +1,42 @@
 const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const { generateAccessToken, generateRefreshToken, verifyRefreshToken } = require('../utils/jwt');
+const { NODE_ENV, COOKIE_DOMAIN, COOKIE_SAME_SITE } = require('../config/env');
 
 const ALLOWED_ROLES = ['User', 'Organization'];
+const SESSION_COOKIE = 'mlboost_session';
+const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+function sessionCookieOptions() {
+    return {
+        httpOnly: true,
+        secure: NODE_ENV === 'production' || COOKIE_SAME_SITE === 'none',
+        sameSite: COOKIE_SAME_SITE,
+        maxAge: SESSION_TTL_MS,
+        path: '/',
+        ...(COOKIE_DOMAIN ? { domain: COOKIE_DOMAIN } : {}),
+    };
+}
+
+function clearSessionCookieOptions() {
+    const { maxAge, ...options } = sessionCookieOptions();
+    return options;
+}
+
+function getSessionToken(req) {
+    return req.cookies[SESSION_COOKIE] || req.cookies.refreshToken;
+}
+
+function publicUser(user) {
+    return {
+        id: user._id,
+        username: user.username,
+        email: user.email,
+        roles: user.roles,
+        avatarUrl: user.avatarUrl,
+        createdAt: user.createdAt,
+    };
+}
 
 // Build a username from an explicit value, a display name, or the email local
 // part, then ensure it's unique (appending -2, -3, ... on collision).
@@ -58,23 +92,11 @@ exports.signup = async (req, res) => {
         const accessToken = generateAccessToken(newUser);
         const refreshToken = generateRefreshToken(newUser);
 
-        // Set refresh token in cookie
-        res.cookie('refreshToken', refreshToken, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict',
-            maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
-        });
+        res.cookie(SESSION_COOKIE, refreshToken, sessionCookieOptions());
 
         res.status(201).json({
             message: 'User registered successfully',
-            user: {
-                id: newUser._id,
-                username: newUser.username,
-                email: newUser.email,
-                roles: newUser.roles,
-                avatarUrl: newUser.avatarUrl
-            },
+            user: publicUser(newUser),
             accessToken
         });
 
@@ -108,23 +130,11 @@ exports.login = async (req, res) => {
         const accessToken = generateAccessToken(user);
         const refreshToken = generateRefreshToken(user);
 
-        // Set refresh token in cookie
-        res.cookie('refreshToken', refreshToken, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict',
-            maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
-        });
+        res.cookie(SESSION_COOKIE, refreshToken, sessionCookieOptions());
 
         res.status(200).json({
             message: 'Login successful',
-            user: {
-                id: user._id,
-                username: user.username,
-                email: user.email,
-                roles: user.roles,
-                avatarUrl: user.avatarUrl
-            },
+            user: publicUser(user),
             accessToken
         });
 
@@ -135,7 +145,7 @@ exports.login = async (req, res) => {
 };
 
 exports.refresh = async (req, res) => {
-    const refreshToken = req.cookies.refreshToken;
+    const refreshToken = getSessionToken(req);
 
     if (!refreshToken) {
         return res.status(401).json({ message: 'No refresh token provided' });
@@ -159,13 +169,26 @@ exports.refresh = async (req, res) => {
     }
 };
 
+exports.session = async (req, res) => {
+    const token = getSessionToken(req);
+    res.set('Cache-Control', 'no-store');
+    if (!token) {
+        return res.status(401).json({ authenticated: false });
+    }
+    try {
+        const decoded = verifyRefreshToken(token);
+        const user = await User.findById(decoded.id);
+        if (!user) return res.status(401).json({ authenticated: false });
+        return res.json({ authenticated: true, user: publicUser(user) });
+    } catch (error) {
+        return res.status(403).json({ authenticated: false });
+    }
+};
+
 exports.logout = (req, res) => {
-    // Mirror the attributes used when the cookie was set so browsers clear it.
-    res.clearCookie('refreshToken', {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
-    });
+    const options = clearSessionCookieOptions();
+    res.clearCookie(SESSION_COOKIE, options);
+    res.clearCookie('refreshToken', options);
     res.status(204).send();
 };
 

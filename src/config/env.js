@@ -36,6 +36,10 @@ module.exports = {
     MONGO_URI: process.env.MONGO_URI || 'mongodb://localhost:27017/leetcode-clone',
     JWT_ACCESS_SECRET: requiredSecret('JWT_ACCESS_SECRET', 'dev_only_access_secret'),
     JWT_REFRESH_SECRET: requiredSecret('JWT_REFRESH_SECRET', 'dev_only_refresh_secret'),
+    COOKIE_DOMAIN: process.env.COOKIE_DOMAIN || '',
+    COOKIE_SAME_SITE: ['strict', 'lax', 'none'].includes((process.env.COOKIE_SAME_SITE || '').toLowerCase())
+        ? process.env.COOKIE_SAME_SITE.toLowerCase()
+        : 'strict',
     REDIS_HOST: process.env.REDIS_HOST || 'localhost',
     REDIS_PORT: process.env.REDIS_PORT || 6379,
     JUDGE0_URL: process.env.JUDGE0_URL || 'http://localhost:2358',
