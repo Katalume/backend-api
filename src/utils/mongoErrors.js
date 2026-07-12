@@ -6,7 +6,7 @@ function sendMongooseError(res, error) {
     if (error && error.name === 'CastError') {
         return res.status(400).json({ message: `Invalid ${error.path}` });
     }
-    if (error && error.name === 'ValidationError') {
+    if (error && (error.name === 'ValidationError' || error.errors)) {
         return res.status(400).json({ message: error.message });
     }
     if (error && (error.code === 11000 || error.code === 11001)) {

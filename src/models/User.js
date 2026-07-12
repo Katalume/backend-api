@@ -26,6 +26,12 @@ const userSchema = new mongoose.Schema({
         default: ['User'],
         enum: ['User', 'Organization', 'Admin']
     },
+    avatarUrl: {
+        type: String,
+        trim: true,
+        maxlength: 2048,
+        default: ''
+    },
     createdAt: {
         type: Date,
         default: Date.now

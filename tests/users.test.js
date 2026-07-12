@@ -58,14 +58,34 @@ describe('user authorization', () => {
         expect(res.status).toBe(403);
     });
 
-    test('a user can update their own allowed fields', async () => {
+    test('a user can update their own display name and avatar without changing roles', async () => {
         const a = await createUser();
         const res = await request(app)
             .put(`/api/users/${a.id}`)
             .set('Authorization', `Bearer ${a.token}`)
-            .send({ username: 'alice-renamed' });
+            .send({
+                username: 'alice-renamed',
+                avatarUrl: 'https://images.example.com/alice.png',
+                roles: ['Admin'],
+            });
         expect(res.status).toBe(200);
         expect(res.body.username).toBe('alice-renamed');
+        expect(res.body.avatarUrl).toBe('https://images.example.com/alice.png');
+        expect(res.body.roles).toEqual(['User']);
+
+        const login = await request(app)
+            .post('/api/auth/login')
+            .send({ email: a.body.email, password: a.body.password });
+        expect(login.body.user.avatarUrl).toBe('https://images.example.com/alice.png');
+    });
+
+    test('invalid profile fields return 400', async () => {
+        const a = await createUser();
+        const res = await request(app)
+            .put(`/api/users/${a.id}`)
+            .set('Authorization', `Bearer ${a.token}`)
+            .send({ username: 'x' });
+        expect(res.status).toBe(400);
     });
 
     test('listing all users requires Admin', async () => {

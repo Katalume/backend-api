@@ -92,6 +92,7 @@ exports.getMyProfile = async (req, res) => {
                 id: user._id,
                 name: user.username,
                 email: user.email,
+                avatarUrl: user.avatarUrl,
                 createdAt: user.createdAt,
             },
             totalSolved,

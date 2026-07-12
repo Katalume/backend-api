@@ -1,6 +1,7 @@
 const User = require('../models/User');
 const Problem = require('../models/Problem');
 const Submission = require('../models/Submission');
+const { sendMongooseError } = require('../utils/mongoErrors');
 
 // True when the requester is acting on their own record or is an Admin.
 function canManage(req) {
@@ -153,7 +154,7 @@ exports.getAllUsers = async (req, res) => {
         const users = await User.find().select('-password');
         res.json(users);
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        sendMongooseError(res, err);
     }
 };
 
@@ -192,7 +193,7 @@ exports.updateUser = async (req, res) => {
         if (!user) return res.status(404).json({ message: 'User not found' });
         res.json(user);
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        sendMongooseError(res, err);
     }
 };
 
