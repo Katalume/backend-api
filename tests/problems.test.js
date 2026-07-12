@@ -137,3 +137,77 @@ describe('reading problems', () => {
         expect(res.status).toBe(404);
     });
 });
+
+describe('problem management', () => {
+    test('update and delete require authentication', async () => {
+        const update = await request(app).put('/api/problems/507f1f77bcf86cd799439011').send(problemBody);
+        const remove = await request(app).delete('/api/problems/507f1f77bcf86cd799439011');
+        expect(update.status).toBe(401);
+        expect(remove.status).toBe(401);
+    });
+
+    test('update and delete reject a non-admin', async () => {
+        const { token } = await userToken();
+        const update = await request(app)
+            .put('/api/problems/507f1f77bcf86cd799439011')
+            .set('Authorization', `Bearer ${token}`)
+            .send(problemBody);
+        const remove = await request(app)
+            .delete('/api/problems/507f1f77bcf86cd799439011')
+            .set('Authorization', `Bearer ${token}`);
+        expect(update.status).toBe(403);
+        expect(remove.status).toBe(403);
+    });
+
+    test('an admin updates content while keeping the slug immutable', async () => {
+        const token = await adminToken();
+        const created = await request(app)
+            .post('/api/problems')
+            .set('Authorization', `Bearer ${token}`)
+            .send(problemBody);
+        const res = await request(app)
+            .put(`/api/problems/${created.body._id}`)
+            .set('Authorization', `Bearer ${token}`)
+            .send({ title: 'Updated KNN', difficulty: 'Hard', slug: 'changed' });
+        expect(res.status).toBe(200);
+        expect(res.body.title).toBe('Updated KNN');
+        expect(res.body.difficulty).toBe('Hard');
+        expect(res.body.slug).toBe(created.body.slug);
+    });
+
+    test('returns 404 for an unknown problem and 400 for invalid content', async () => {
+        const token = await adminToken();
+        const missing = await request(app)
+            .put('/api/problems/507f1f77bcf86cd799439011')
+            .set('Authorization', `Bearer ${token}`)
+            .send({ title: 'Missing' });
+        const created = await request(app)
+            .post('/api/problems')
+            .set('Authorization', `Bearer ${token}`)
+            .send(problemBody);
+        const invalid = await request(app)
+            .put(`/api/problems/${created.body._id}`)
+            .set('Authorization', `Bearer ${token}`)
+            .send({ difficulty: 'Impossible' });
+        expect(missing.status).toBe(404);
+        expect(invalid.status).toBe(400);
+    });
+
+    test('deleting a problem also deletes its test cases', async () => {
+        const token = await adminToken();
+        const created = await request(app)
+            .post('/api/problems')
+            .set('Authorization', `Bearer ${token}`)
+            .send({ ...problemBody, testcases: [{ input: '1', expectedOutput: '1' }] });
+        const res = await request(app)
+            .delete(`/api/problems/${created.body._id}`)
+            .set('Authorization', `Bearer ${token}`);
+        expect(res.status).toBe(200);
+        expect(await Testcase.countDocuments({ problemId: created.body._id })).toBe(0);
+
+        const missing = await request(app)
+            .delete(`/api/problems/${created.body._id}`)
+            .set('Authorization', `Bearer ${token}`);
+        expect(missing.status).toBe(404);
+    });
+});
