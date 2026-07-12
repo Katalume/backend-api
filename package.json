@@ -13,7 +13,9 @@
     "test": "jest --runInBand",
     "test:watch": "jest --watch",
     "start": "node src/app.js",
-    "dev": "node --watch src/app.js"
+    "dev": "node --watch src/app.js",
+    "dev:memory": "node scripts/devServer.js",
+    "seed": "node scripts/seedData.js"
   },
   "dependencies": {
     "axios": "^1.13.2",

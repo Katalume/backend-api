@@ -2,22 +2,43 @@ const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const { generateAccessToken, generateRefreshToken, verifyRefreshToken } = require('../utils/jwt');
 
+const ALLOWED_ROLES = ['User', 'Organization'];
+
+// Build a username from an explicit value, a display name, or the email local
+// part, then ensure it's unique (appending -2, -3, ... on collision).
+async function resolveUsername({ username, name, email }) {
+    let base = (username || name || (email || '').split('@')[0] || 'user')
+        .toString()
+        .trim();
+    if (base.length < 3) base = `${base}user`;
+    base = base.slice(0, 28);
+
+    let candidate = base;
+    let n = 1;
+    // eslint-disable-next-line no-await-in-loop
+    while (await User.exists({ username: candidate })) {
+        n += 1;
+        candidate = `${base}-${n}`;
+    }
+    return candidate;
+}
 
 exports.signup = async (req, res) => {
     try {
-        const { username, email, password, role } = req.body;
+        const { username, name, email, password, role } = req.body;
 
-        // Validate Role
-        const allowedRoles = ['User', 'Organization'];
-        if (!role || !allowedRoles.includes(role)) {
+        // Role defaults to 'User'; only the two self-service roles are allowed here.
+        const selectedRole = role || 'User';
+        if (!ALLOWED_ROLES.includes(selectedRole)) {
             return res.status(400).json({ message: "Invalid role. Choose 'User' or 'Organization'." });
         }
 
-        // Check if user exists
-        const existingUser = await User.findOne({ $or: [{ email }, { username }] });
-        if (existingUser) {
-            return res.status(409).json({ message: 'Username or Email already exists' });
+        // Reject a duplicate email up front (clearer than a generic 409).
+        if (await User.exists({ email })) {
+            return res.status(409).json({ message: 'Email already exists' });
         }
+
+        const resolvedUsername = await resolveUsername({ username, name, email });
 
         // Hash password
         const salt = await bcrypt.genSalt(10);
@@ -25,10 +46,10 @@ exports.signup = async (req, res) => {
 
         // Create user
         const newUser = new User({
-            username,
+            username: resolvedUsername,
             email,
             password: hashedPassword,
-            roles: [role] // Assign selected role
+            roles: [selectedRole]
         });
 
         await newUser.save();
