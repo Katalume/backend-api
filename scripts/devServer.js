@@ -25,6 +25,23 @@ async function main() {
     const { seedAll } = require('./seedData');
     await seedAll();
 
+    // Dev-only: ensure a known admin exists so the admin UI is testable locally.
+    // Never do this against a real database.
+    const bcrypt = require('bcryptjs');
+    const User = require('../src/models/User');
+    const ADMIN_EMAIL = 'admin@mlboost.dev';
+    const ADMIN_PASSWORD = 'adminpass123';
+    if (!(await User.exists({ email: ADMIN_EMAIL }))) {
+        await User.create({
+            username: 'admin',
+            email: ADMIN_EMAIL,
+            password: await bcrypt.hash(ADMIN_PASSWORD, 10),
+            roles: ['Admin'],
+        });
+    }
+    // eslint-disable-next-line no-console
+    console.log(`[dev:memory] admin login → ${ADMIN_EMAIL} / ${ADMIN_PASSWORD}`);
+
     // require after env + connection are ready; app does not auto-listen here.
     const app = require('../src/app');
     const { BACKEND_PORT } = require('../src/config/env');
