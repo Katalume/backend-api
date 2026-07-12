@@ -77,7 +77,7 @@ const LEARNING_TRACKS = [
         slug: 'ml-foundations',
         title: 'ML Foundations',
         description: 'Linear models, overfitting, feature scaling, and evaluation.',
-        tags: ['supervised-learning', 'model-evaluation'],
+        tags: ['regression', 'optimization', 'classification'],
         order: 1,
         lessons: ['Bias-Variance Tradeoff', 'Confusion Matrix and F1', 'Regularization in Practice'],
     },
