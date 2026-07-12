@@ -32,6 +32,27 @@ describe('POST /api/auth/signup', () => {
         expect(res.status).toBe(400);
     });
 
+    test('accepts a name-only payload (derives a username, defaults role)', async () => {
+        const res = await request(app).post('/api/auth/signup').send({
+            name: 'Live Tester',
+            email: 'live@example.com',
+            password: 'password123',
+        });
+        expect(res.status).toBe(201);
+        expect(res.body.user.roles).toEqual(['User']);
+        expect(res.body.user.username).toBeTruthy();
+        expect(res.body.accessToken).toBeTruthy();
+    });
+
+    test('derives distinct usernames for the same name', async () => {
+        const body = { name: 'Same Name', email: 'a@example.com', password: 'password123' };
+        const first = await request(app).post('/api/auth/signup').send(body);
+        const second = await request(app)
+            .post('/api/auth/signup')
+            .send({ ...body, email: 'b@example.com' });
+        expect(first.body.user.username).not.toBe(second.body.user.username);
+    });
+
     test('rejects a short password (validation)', async () => {
         const res = await request(app)
             .post('/api/auth/signup')
