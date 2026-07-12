@@ -99,7 +99,14 @@ exports.deleteProblem = async (req, res) => {
 
 exports.getProblems = async (req, res) => {
   try {
-    const problems = await Problem.find({}, 'title slug difficulty tags').lean();
+    const tags = typeof req.query.tags === 'string'
+      ? [...new Set(req.query.tags.split(',').map((tag) => tag.trim()).filter(Boolean))]
+      : [];
+    if (tags.length > 10 || tags.some((tag) => tag.length > 50)) {
+      return res.status(400).json({ message: 'Invalid tags filter' });
+    }
+    const filter = tags.length ? { tags: { $in: tags } } : {};
+    const problems = await Problem.find(filter, 'title slug difficulty tags').lean();
 
     // When authenticated (optionalAuth), annotate each problem with the user's
     // per-problem status: solved (has an Accepted submission), attempted (has

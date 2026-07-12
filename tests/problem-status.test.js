@@ -14,12 +14,13 @@ async function signup(overrides = {}) {
     return { token: res.body.accessToken, id: res.body.user.id };
 }
 
-async function makeProblem(slug) {
+async function makeProblem(slug, tags = []) {
     return Problem.create({
         title: slug,
         slug,
         description: 'desc',
         difficulty: 'Easy',
+        tags,
     });
 }
 
@@ -89,5 +90,31 @@ describe('GET /api/problems solved-state', () => {
             .set('Authorization', 'Bearer garbage');
         expect(res.status).toBe(200);
         expect(res.body[0].status).toBeUndefined();
+    });
+
+    test('filters by any requested track tag and preserves user status', async () => {
+        const { token, id } = await signup();
+        const matching = await makeProblem('matching-problem', ['ranking', 'retrieval']);
+        await makeProblem('other-problem', ['pandas']);
+        await Submission.create({
+            userId: id,
+            problemId: matching._id,
+            code: 'x',
+            languageId: 71,
+            status: 'Accepted',
+        });
+
+        const res = await request(app)
+            .get('/api/problems?tags=ranking,offline-metrics')
+            .set('Authorization', `Bearer ${token}`);
+        expect(res.status).toBe(200);
+        expect(res.body).toHaveLength(1);
+        expect(res.body[0]).toMatchObject({ slug: 'matching-problem', status: 'solved' });
+    });
+
+    test('rejects an excessive tags filter', async () => {
+        const tags = Array.from({ length: 11 }, (_, index) => `tag-${index}`).join(',');
+        const res = await request(app).get(`/api/problems?tags=${tags}`);
+        expect(res.status).toBe(400);
     });
 });
