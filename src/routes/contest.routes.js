@@ -4,6 +4,7 @@ const contestController = require('../controllers/contest.controller');
 const { verifyToken, authorizeRoles } = require('../middleware/auth.middleware');
 
 router.get('/', contestController.getAllContests);
+router.get('/:id/leaderboard', contestController.getContestLeaderboard);
 router.get('/:id', contestController.getContestById);
 
 router.post('/', verifyToken, authorizeRoles('Admin'), contestController.createContest);

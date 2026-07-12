@@ -1,6 +1,9 @@
 const request = require('supertest');
 const app = require('../src/app');
 const User = require('../src/models/User');
+const Problem = require('../src/models/Problem');
+const Contest = require('../src/models/Contest');
+const Leaderboard = require('../src/models/Leaderboard');
 
 async function signup(overrides = {}) {
     const res = await request(app).post('/api/auth/signup').send({
@@ -146,5 +149,46 @@ describe('contest management', () => {
             .set('Authorization', `Bearer ${token}`)
             .send({ startTime: 'not-a-date' });
         expect(invalid.status).toBe(400);
+    });
+});
+
+describe('contest detail and leaderboard', () => {
+    test('detail includes populated problems, timing, and participant count without participant ids', async () => {
+        const problem = await Problem.create({ title: 'Contest Problem', slug: 'contest-problem', description: 'Solve it', difficulty: 'Hard' });
+        const { id: playerId } = await signup();
+        const contest = await Contest.create({ ...validContest, problems: [problem._id], participants: [playerId] });
+
+        const res = await request(app).get(`/api/contests/${contest._id}`);
+        expect(res.status).toBe(200);
+        expect(res.body.startTime).toBe(validContest.startTime);
+        expect(res.body.endTime).toBe(validContest.endTime);
+        expect(res.body.participantCount).toBe(1);
+        expect(res.body.participants).toBeUndefined();
+        expect(res.body.problems[0]).toMatchObject({ title: 'Contest Problem', slug: 'contest-problem', difficulty: 'Hard' });
+    });
+
+    test('leaderboard is public and ranks stored entries by score then submission time', async () => {
+        const alice = await signup({ username: 'alice', email: 'alice@example.com' });
+        const bob = await signup({ username: 'bobby', email: 'bob@example.com' });
+        const problem = await Problem.create({ title: 'P', slug: 'p', description: 'D' });
+        const contest = await Contest.create(validContest);
+        await Leaderboard.create([
+            { contestId: contest._id, userId: bob.id, score: 2, problemsSolved: [problem._id], lastSubmissionTime: '2030-01-01T01:00:00.000Z' },
+            { contestId: contest._id, userId: alice.id, score: 2, problemsSolved: [problem._id], lastSubmissionTime: '2030-01-01T00:30:00.000Z' },
+        ]);
+
+        const res = await request(app).get(`/api/contests/${contest._id}/leaderboard`);
+        expect(res.status).toBe(200);
+        expect(res.body.map((entry) => entry.username)).toEqual(['alice', 'bobby']);
+        expect(res.body[0]).toMatchObject({ rank: 1, score: 2, problemsSolved: 1 });
+        expect(res.body[1].rank).toBe(2);
+    });
+
+    test('detail and leaderboard return 404 for unknown contests and 400 for malformed ids', async () => {
+        const unknown = '507f1f77bcf86cd799439011';
+        expect((await request(app).get(`/api/contests/${unknown}`)).status).toBe(404);
+        expect((await request(app).get(`/api/contests/${unknown}/leaderboard`)).status).toBe(404);
+        expect((await request(app).get('/api/contests/not-an-id')).status).toBe(400);
+        expect((await request(app).get('/api/contests/not-an-id/leaderboard')).status).toBe(400);
     });
 });

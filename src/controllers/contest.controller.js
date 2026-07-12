@@ -1,4 +1,5 @@
 const Contest = require('../models/Contest');
+const Leaderboard = require('../models/Leaderboard');
 const { sendMongooseError } = require('../utils/mongoErrors');
 
 exports.createContest = async (req, res) => {
@@ -38,11 +39,36 @@ exports.getAllContests = async (req, res) => {
 
 exports.getContestById = async (req, res) => {
     try {
-        const contest = await Contest.findById(req.params.id).populate('problems', 'title slug difficulty');
+        const contest = await Contest.findById(req.params.id)
+            .populate('problems', 'title slug difficulty')
+            .lean();
         if (!contest) return res.status(404).json({ message: 'Contest not found' });
-        res.json(contest);
+        const { participants = [], ...detail } = contest;
+        res.json({ ...detail, participantCount: participants.length });
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        sendMongooseError(res, err);
+    }
+};
+
+exports.getContestLeaderboard = async (req, res) => {
+    try {
+        const exists = await Contest.exists({ _id: req.params.id });
+        if (!exists) return res.status(404).json({ message: 'Contest not found' });
+
+        const entries = await Leaderboard.find({ contestId: req.params.id })
+            .populate('userId', 'username')
+            .sort({ score: -1, lastSubmissionTime: 1 })
+            .lean();
+        res.json(entries.map((entry, index) => ({
+            rank: index + 1,
+            userId: entry.userId?._id || entry.userId,
+            username: entry.userId?.username || 'Unknown user',
+            score: entry.score,
+            problemsSolved: (entry.problemsSolved || []).length,
+            lastSubmissionTime: entry.lastSubmissionTime,
+        })));
+    } catch (err) {
+        sendMongooseError(res, err);
     }
 };
 
