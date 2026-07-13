@@ -29,7 +29,7 @@ async function main() {
     // Never do this against a real database.
     const bcrypt = require('bcryptjs');
     const User = require('../src/models/User');
-    const ADMIN_EMAIL = 'admin@mlboost.dev';
+    const ADMIN_EMAIL = 'admin@katalume.dev';
     const ADMIN_PASSWORD = 'adminpass123';
     if (!(await User.exists({ email: ADMIN_EMAIL }))) {
         await User.create({
@@ -48,7 +48,7 @@ async function main() {
 
     const server = app.listen(BACKEND_PORT, () => {
         // eslint-disable-next-line no-console
-        console.log(`[dev:memory] API listening on http://localhost:${BACKEND_PORT} (in-memory Mongo)`);
+        console.log(`[dev:memory] Katalume API listening on http://localhost:${BACKEND_PORT} (in-memory Mongo)`);
     });
 
     const shutdown = async () => {

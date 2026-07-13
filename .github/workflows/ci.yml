@@ -38,4 +38,4 @@ jobs:
         run: npm audit --omit=dev --audit-level=high
 
       - name: Build production container
-        run: docker build --tag mlboost-backend:${{ github.sha }} .
+        run: docker build --tag katalume-backend:${{ github.sha }} .
