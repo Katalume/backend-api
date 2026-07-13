@@ -117,7 +117,7 @@ app.use((err, req, res, next) => {
 async function start() {
     await Promise.all([connectDB(), connectRedis()]);
     const server = app.listen(BACKEND_PORT, () => {
-        logger.info(`Server running on port ${BACKEND_PORT}`);
+        logger.info(`Katalume API running on port ${BACKEND_PORT}`);
     });
 
     // Graceful shutdown: stop accepting connections, then close the DB.

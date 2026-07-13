@@ -57,7 +57,7 @@ module.exports = {
     NODE_ENV,
     BACKEND_PORT: positiveInt('BACKEND_PORT', 5001, { max: 65535 }),
     TRUST_PROXY: positiveInt('TRUST_PROXY', 0, { min: 0, max: 10 }),
-    MONGO_URI: process.env.MONGO_URI || 'mongodb://localhost:27017/leetcode-clone',
+    MONGO_URI: process.env.MONGO_URI || 'mongodb://localhost:27017/katalume',
     MONGO_POOL_SIZE: positiveInt('MONGO_POOL_SIZE', 20, { max: 200 }),
     JWT_ACCESS_SECRET: requiredSecret('JWT_ACCESS_SECRET', 'dev_only_access_secret'),
     JWT_REFRESH_SECRET: requiredSecret('JWT_REFRESH_SECRET', 'dev_only_refresh_secret'),
