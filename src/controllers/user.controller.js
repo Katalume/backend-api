@@ -15,8 +15,8 @@ exports.getMyStats = async (req, res) => {
     try {
         const userId = req.user.id;
         const [totalProblems, problems, subs] = await Promise.all([
-            Problem.countDocuments(),
-            Problem.find({}, 'difficulty').lean(),
+            Problem.countDocuments({ archivedAt: null }),
+            Problem.find({ archivedAt: null }, 'difficulty').lean(),
             Submission.find({ userId }, 'problemId status').lean(),
         ]);
 
@@ -83,7 +83,7 @@ exports.getMyProgress = async (req, res) => {
         const userId = req.user.id;
         const [accepted, problems] = await Promise.all([
             Submission.find({ userId, status: 'Accepted' }, 'problemId createdAt').lean(),
-            Problem.find({}, 'tags').lean(),
+            Problem.find({ archivedAt: null }, 'tags').lean(),
         ]);
 
         const solvedProblemIds = new Set(accepted.map((s) => String(s.problemId)));
@@ -151,7 +151,16 @@ exports.getMyProgress = async (req, res) => {
 
 exports.getAllUsers = async (req, res) => {
     try {
-        const users = await User.find().select('-password');
+        const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 100);
+        const filter = {};
+        if (req.query.before) {
+            if (!require('mongoose').Types.ObjectId.isValid(req.query.before)) {
+                return res.status(400).json({ message: 'Invalid before cursor' });
+            }
+            filter._id = { $lt: req.query.before };
+        }
+        const users = await User.find(filter).select('-password').sort({ _id: -1 }).limit(limit);
+        if (users.length === limit) res.set('X-Next-Cursor', String(users[users.length - 1]._id));
         res.json(users);
     } catch (err) {
         sendMongooseError(res, err);
@@ -181,13 +190,17 @@ exports.updateUser = async (req, res) => {
 
         // Never allow privilege fields to be set through a self-service update.
         // `roles` may only be changed by an Admin; `password` goes through auth.
-        const { password, roles, _id, ...updateData } = req.body;
+        const updateData = {};
+        for (const field of ['username', 'avatarUrl']) {
+            if (Object.prototype.hasOwnProperty.call(req.body, field)) updateData[field] = req.body[field];
+        }
+        const { roles } = req.body;
         if (roles !== undefined && isAdmin) {
             updateData.roles = roles;
         }
 
         const user = await User.findByIdAndUpdate(req.params.id, updateData, {
-            new: true,
+            returnDocument: 'after',
             runValidators: true,
         }).select('-password');
         if (!user) return res.status(404).json({ message: 'User not found' });
@@ -199,8 +212,9 @@ exports.updateUser = async (req, res) => {
 
 exports.deleteUser = async (req, res) => {
     try {
-        const user = await User.findByIdAndDelete(req.params.id);
+        const user = await User.findById(req.params.id);
         if (!user) return res.status(404).json({ message: 'User not found' });
+        await require('../services/account.service').deleteUserData(user._id);
         res.json({ message: 'User deleted' });
     } catch (err) {
         res.status(500).json({ message: err.message });

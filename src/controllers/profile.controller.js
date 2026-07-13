@@ -15,7 +15,7 @@ exports.getMyProfile = async (req, res) => {
         const userId = req.user.id;
         const [user, problems, subs] = await Promise.all([
             User.findById(userId).select('-password').lean(),
-            Problem.find({}, 'tags').lean(),
+            Problem.find({ archivedAt: null }, 'tags').lean(),
             Submission.find({ userId }, 'problemId status createdAt').lean(),
         ]);
 
@@ -39,6 +39,11 @@ exports.getMyProfile = async (req, res) => {
         const activeDays = new Set(
             subs.filter((s) => s.status === 'Accepted').map((s) => isoDay(s.createdAt))
         );
+        const submissionsByDay = new Map();
+        for (const submission of subs) {
+            const day = isoDay(submission.createdAt);
+            submissionsByDay.set(day, (submissionsByDay.get(day) || 0) + 1);
+        }
         const today = new Date();
         let streakDays = 0;
         for (let i = 0; ; i += 1) {
@@ -51,8 +56,7 @@ exports.getMyProfile = async (req, res) => {
         const heatmap = [];
         for (let i = 119; i >= 0; i -= 1) {
             const key = isoDay(new Date(today.getTime() - i * DAY_MS));
-            const count = subs.filter((s) => isoDay(s.createdAt) === key).length;
-            heatmap.push({ date: key, count });
+            heatmap.push({ date: key, count: submissionsByDay.get(key) || 0 });
         }
 
         // Acceptance trend: monthly acceptance rate, last 6 months with activity.

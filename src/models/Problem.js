@@ -4,7 +4,8 @@ const problemSchema = new mongoose.Schema({
   title: {
     type: String,
     required: true,
-    trim: true
+    trim: true,
+    maxlength: 160
   },
   slug: {
     type: String,
@@ -14,7 +15,8 @@ const problemSchema = new mongoose.Schema({
   },
   description: {
     type: String,
-    required: true
+    required: true,
+    maxlength: 50000
   },
   difficulty: {
     type: String,
@@ -22,12 +24,15 @@ const problemSchema = new mongoose.Schema({
     default: 'Medium'
   },
   tags: [{
-    type: String
+    type: String,
+    trim: true,
+    maxlength: 50
   }],
   // Code shown in the editor when a user opens the problem.
   starterCode: {
     type: String,
-    default: ''
+    default: '',
+    maxlength: 100000
   },
   constraints: [{
     type: String
@@ -50,10 +55,28 @@ const problemSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Testcase'
   }],
+  testcaseVersion: {
+    type: Number,
+    default: 1,
+    min: 1
+  },
+  contentVersion: {
+    type: Number,
+    default: 1,
+    min: 1
+  },
+  archivedAt: {
+    type: Date,
+    default: null
+  },
   createdAt: {
     type: Date,
     default: Date.now
   }
 });
+
+problemSchema.index({ tags: 1, _id: -1 });
+problemSchema.index({ difficulty: 1, _id: -1 });
+problemSchema.index({ archivedAt: 1, _id: -1 });
 
 module.exports = mongoose.model('Problem', problemSchema);

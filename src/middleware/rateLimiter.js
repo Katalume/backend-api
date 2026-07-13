@@ -1,37 +1,47 @@
 const rateLimit = require('express-rate-limit');
+const { RedisStore } = require('rate-limit-redis');
+const { client } = require('../config/redis');
+const { REDIS_URL } = require('../config/env');
 
 const message = (msg) => ({ status: 429, message: msg });
-
-// Disable throttling under test so suites aren't rate-limited.
 const skip = () => process.env.NODE_ENV === 'test';
 
-// General API limiter — applied to all /api routes.
+function store(prefix) {
+    if (!REDIS_URL) return undefined;
+    return new RedisStore({
+        prefix: `mlboost:${prefix}:`,
+        sendCommand: (...args) => client.sendCommand(args),
+    });
+}
+
 const apiLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 300,
-    standardHeaders: true,
+    windowMs: 15 * 60 * 1000,
+    limit: 300,
+    standardHeaders: 'draft-8',
     legacyHeaders: false,
     skip,
+    store: store('api'),
     message: message('Too many requests, please try again later.'),
 });
 
-// Strict limiter for authentication endpoints (brute-force protection).
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 20,
-    standardHeaders: true,
+    limit: 20,
+    standardHeaders: 'draft-8',
     legacyHeaders: false,
     skip,
+    store: store('auth'),
     message: message('Too many authentication attempts, please try again later.'),
 });
 
-// Limiter for the untrusted-code execution endpoints (run/submit).
 const executionLimiter = rateLimit({
-    windowMs: 60 * 1000, // 1 minute
-    max: 15,
-    standardHeaders: true,
+    windowMs: 60 * 1000,
+    limit: 15,
+    standardHeaders: 'draft-8',
     legacyHeaders: false,
     skip,
+    store: store('execution'),
+    keyGenerator: (req) => req.user.id,
     message: message('Too many code executions, please slow down.'),
 });
 

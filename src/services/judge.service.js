@@ -1,86 +1,86 @@
 const axios = require('axios');
+const {
+  JUDGE0_URL,
+  JUDGE0_AUTH_TOKEN,
+  JUDGE0_TIMEOUT_MS,
+  JUDGE0_POLL_INTERVAL_MS,
+  JUDGE0_CONCURRENCY,
+} = require('../config/env');
 
-const { JUDGE0_URL, JUDGE0_AUTH_TOKEN } = require('../config/env');
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
-const JUDGE0_API_URL = JUDGE0_URL;
+function encode(value) {
+  return Buffer.from(value == null ? '' : String(value)).toString('base64');
+}
 
 class JudgeService {
   constructor() {
     const headers = { 'Content-Type': 'application/json' };
-    // Authenticate to Judge0 when a token is configured (AUTHN_TOKEN in judge0.conf).
-    if (JUDGE0_AUTH_TOKEN) {
-      headers['X-Auth-Token'] = JUDGE0_AUTH_TOKEN;
+    if (JUDGE0_AUTH_TOKEN) headers['X-Auth-Token'] = JUDGE0_AUTH_TOKEN;
+    this.api = axios.create({ baseURL: JUDGE0_URL, headers, timeout: JUDGE0_TIMEOUT_MS });
+  }
+
+  async poll(token) {
+    const deadline = Date.now() + JUDGE0_TIMEOUT_MS;
+    while (Date.now() < deadline) {
+      const response = await this.api.get(`/submissions/${encodeURIComponent(token)}?base64_encoded=true`);
+      if (Number(response.data?.status?.id) > 2) return response.data;
+      await sleep(JUDGE0_POLL_INTERVAL_MS);
     }
-    this.api = axios.create({
-      baseURL: JUDGE0_API_URL,
-      headers,
+    const error = new Error('Judge0 evaluation timed out');
+    error.code = 'JUDGE_TIMEOUT';
+    throw error;
+  }
+
+  async executePayload(submission) {
+    const payload = {
+      source_code: encode(submission.source_code),
+      language_id: submission.language_id,
+      stdin: encode(submission.stdin),
+      ...(submission.expected_output == null ? {} : { expected_output: encode(submission.expected_output) }),
+      ...(submission.cpu_time_limit == null ? {} : { cpu_time_limit: submission.cpu_time_limit }),
+      ...(submission.memory_limit == null ? {} : { memory_limit: submission.memory_limit }),
+      wall_time_limit: Math.max(2, Number(submission.cpu_time_limit || 2) * 2),
+      max_file_size: 1024,
+    };
+    const response = await this.api.post('/submissions?base64_encoded=true&wait=false', payload);
+    if (!response.data?.token) throw new Error('Judge0 did not return an evaluation token');
+    return this.poll(response.data.token);
+  }
+
+  // Compatibility wrapper used by the custom-run controller/tests.
+  async execute(sourceCode, languageId, stdin, expectedOutput, limits = {}) {
+    return this.executePayload({
+      source_code: sourceCode,
+      language_id: languageId,
+      stdin,
+      expected_output: expectedOutput,
+      ...limits,
     });
   }
 
-  /**
-   * Execute code against a single test case
-   * @param {string} sourceCode 
-   * @param {number} languageId 
-   * @param {string} stdin 
-   * @param {string} expectedOutput 
-   * @returns {Promise<Object>} Submission result
-   */
-  async execute(sourceCode, languageId, stdin, expectedOutput) {
-    try {
-      const payload = {
-        source_code: sourceCode,
-        language_id: languageId,
-        stdin: stdin
-      };
-      
-      // Only include expected_output if it's not null
-      if (expectedOutput !== null && expectedOutput !== undefined) {
-        payload.expected_output = expectedOutput;
-      }
-      
-      const response = await this.api.post('/submissions?base64_encoded=true&wait=true', payload);
-      return response.data;
-    } catch (error) {
-      console.error('Judge0 execution error:', error.response ? error.response.data : error.message);
-      throw error;
-    }
-  }
-
-  /**
-   * Execute code against multiple test cases (Batch)
-   * @param {Array} submissions - Array of { source_code, language_id, stdin, expected_output }
-   * @returns {Promise<Array>} Array of results
-   */
   async executeBatch(submissions) {
-    try {
-      // Judge0 Batch Submission - Loop for MVP simplicity to ensure results
-      const results = [];
-      for (const sub of submissions) {
-        const result = await this.execute(
-          Buffer.from(sub.source_code || '').toString('base64'),
-          sub.language_id,
-          Buffer.from(sub.stdin || '').toString('base64'),
-          sub.expected_output != null
-            ? Buffer.from(sub.expected_output).toString('base64')
-            : null
-        );
-        results.push(result);
+    const results = new Array(submissions.length);
+    let nextIndex = 0;
+    const worker = async () => {
+      while (nextIndex < submissions.length) {
+        const index = nextIndex;
+        nextIndex += 1;
+        results[index] = await this.executePayload(submissions[index]);
       }
-      return results;
-    } catch (error) {
-      console.error('Judge0 batch execution error:', error.response ? error.response.data : error.message);
-      throw error;
-    }
+    };
+    await Promise.all(Array.from(
+      { length: Math.min(JUDGE0_CONCURRENCY, submissions.length) },
+      () => worker()
+    ));
+    return results;
   }
 
   async getLanguages() {
-    try {
-      const response = await this.api.get('/languages');
-      return response.data;
-    } catch (error) {
-      console.error('Error fetching languages:', error.message);
-      return [];
-    }
+    const response = await this.api.get('/languages');
+    return response.data;
   }
 }
 

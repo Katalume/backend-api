@@ -1,16 +1,20 @@
-// Redis configuration placeholder
-const redis = require('redis');
-const { REDIS_HOST, REDIS_PORT } = require('./env');
+const { createClient } = require('redis');
+const { REDIS_URL, REDIS_HOST, REDIS_PORT } = require('./env');
+const logger = require('../utils/logger');
 
-const client = redis.createClient({
-    socket: {
-        host: REDIS_HOST,
-        port: REDIS_PORT
-    }
-});
+const client = createClient(REDIS_URL
+    ? { url: REDIS_URL }
+    : { socket: { host: REDIS_HOST, port: REDIS_PORT } });
 
-client.on('error', (err) => console.log('Redis Client Error', err));
+client.on('error', (error) => logger.error('Redis client error', error));
 
-// await client.connect(); // Connect when needed
+async function connectRedis() {
+    if (!client.isOpen) await client.connect();
+    return client;
+}
 
-module.exports = client;
+async function closeRedis() {
+    if (client.isOpen) await client.quit();
+}
+
+module.exports = { client, connectRedis, closeRedis };

@@ -63,7 +63,7 @@ exports.updateTrack = async (req, res) => {
             }
         }
         const track = await LearningTrack.findByIdAndUpdate(req.params.id, updates, {
-            new: true,
+            returnDocument: 'after',
             runValidators: true,
         });
         if (!track) return res.status(404).json({ message: 'Learning track not found' });

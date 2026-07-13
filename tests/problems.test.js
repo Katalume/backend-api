@@ -2,6 +2,7 @@ const request = require('supertest');
 const app = require('../src/app');
 const User = require('../src/models/User');
 const Testcase = require('../src/models/Testcase');
+const AuditEvent = require('../src/models/AuditEvent');
 
 async function userToken(overrides = {}) {
     const res = await request(app).post('/api/auth/signup').send({
@@ -57,6 +58,9 @@ describe('createProblem', () => {
         expect(res.status).toBe(201);
         expect(res.body.slug).toBe('k-nearest-neighbors');
         expect(res.body.starterCode).toBe(problemBody.starterCode);
+        const audit = await AuditEvent.findOne({ action: 'problem.create' });
+        expect(audit).toMatchObject({ targetType: 'Problem', status: 201 });
+        expect(String(audit.targetId)).toBe(res.body._id);
     });
 
     test('duplicate titles get distinct slugs instead of a 500', async () => {
@@ -132,6 +136,28 @@ describe('reading problems', () => {
         expect(res.body.starterCode).toBe(problemBody.starterCode);
     });
 
+    test('keeps editorials locked until the authenticated user has an accepted submission', async () => {
+        const token = await adminToken();
+        const created = await request(app)
+            .post('/api/problems')
+            .set('Authorization', `Bearer ${token}`)
+            .send({ ...problemBody, editorial: { summary: 'Secret solution', approach: 'Do it' } });
+        const user = await userToken({ username: 'solver', email: 'solver@example.com' });
+        const locked = await request(app)
+            .get(`/api/problems/${created.body.slug}`)
+            .set('Authorization', `Bearer ${user.token}`);
+        expect(locked.body.editorial).toBeUndefined();
+
+        const Submission = require('../src/models/Submission');
+        await Submission.create({
+            userId: user.id, problemId: created.body._id, code: 'x', languageId: 71, status: 'Accepted',
+        });
+        const unlocked = await request(app)
+            .get(`/api/problems/${created.body.slug}`)
+            .set('Authorization', `Bearer ${user.token}`);
+        expect(unlocked.body.editorial.summary).toBe('Secret solution');
+    });
+
     test('GET /api/problems/:slug returns 404 for unknown slug', async () => {
         const res = await request(app).get('/api/problems/does-not-exist');
         expect(res.status).toBe(404);
@@ -173,6 +199,23 @@ describe('problem management', () => {
         expect(res.body.title).toBe('Updated KNN');
         expect(res.body.difficulty).toBe('Hard');
         expect(res.body.slug).toBe(created.body.slug);
+    });
+
+    test('atomically switches to a new testcase version during admin edits', async () => {
+        const token = await adminToken();
+        const created = await request(app)
+            .post('/api/problems')
+            .set('Authorization', `Bearer ${token}`)
+            .send({ ...problemBody, testcases: [{ input: 'old', expectedOutput: 'old' }] });
+        const updated = await request(app)
+            .put(`/api/problems/${created.body._id}`)
+            .set('Authorization', `Bearer ${token}`)
+            .send({ testcases: [{ input: 'new', expectedOutput: 'new', timeLimit: 1, memoryLimit: 64000 }] });
+        expect(updated.status).toBe(200);
+        expect(updated.body.testcaseVersion).toBe(2);
+        const active = await Testcase.find({ problemId: created.body._id });
+        expect(active).toHaveLength(1);
+        expect(active[0]).toMatchObject({ version: 2, input: 'new', timeLimit: 1, memoryLimit: 64000 });
     });
 
     test('returns 404 for an unknown problem and 400 for invalid content', async () => {

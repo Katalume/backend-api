@@ -4,7 +4,13 @@ const { MongoMemoryServer } = require('mongodb-memory-server');
 let mem;
 
 beforeAll(async () => {
-    mem = await MongoMemoryServer.create();
+  // CI hosts and concurrent local checks can take longer than the library's
+  // 10-second default to spawn the bundled mongod. Give the process a bounded
+  // startup window so infrastructure scheduling does not masquerade as an API
+  // regression.
+  mem = await MongoMemoryServer.create({
+    instance: { launchTimeout: 30_000 },
+  });
     await mongoose.connect(mem.getUri());
 });
 

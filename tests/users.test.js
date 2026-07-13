@@ -119,4 +119,19 @@ describe('user authorization', () => {
             .set('Authorization', `Bearer ${adminToken}`);
         expect(read.status).toBe(200);
     });
+
+    test('role changes take effect immediately instead of waiting for JWT expiry', async () => {
+        const admin = await createUser({ username: 'admin', email: 'admin@example.com' });
+        await User.updateOne({ _id: admin.id }, { roles: ['Admin'] });
+        const login = await request(app).post('/api/auth/login').send({
+            email: 'admin@example.com', password: 'password123',
+        });
+        expect((await request(app)
+            .get('/api/admin/stats')
+            .set('Authorization', `Bearer ${login.body.accessToken}`)).status).toBe(200);
+        await User.updateOne({ _id: admin.id }, { roles: ['User'] });
+        expect((await request(app)
+            .get('/api/admin/stats')
+            .set('Authorization', `Bearer ${login.body.accessToken}`)).status).toBe(403);
+    });
 });

@@ -4,7 +4,8 @@ const { sendMongooseError } = require('../utils/mongoErrors');
 
 exports.createContest = async (req, res) => {
     try {
-        const contest = new Contest(req.body);
+        const { title, description, startTime, endTime, problems } = req.body;
+        const contest = new Contest({ title, description, startTime, endTime, problems });
         await contest.save();
         res.status(201).json(contest);
     } catch (err) {
@@ -14,8 +15,16 @@ exports.createContest = async (req, res) => {
 
 exports.getAllContests = async (req, res) => {
     try {
-        const contests = await Contest.find()
+        const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 100);
+        const filter = {};
+        if (req.query.before) {
+            const before = new Date(req.query.before);
+            if (Number.isNaN(before.valueOf())) return res.status(400).json({ message: 'Invalid before cursor' });
+            filter.startTime = { $lt: before };
+        }
+        const contests = await Contest.find(filter)
             .sort({ startTime: -1 })
+            .limit(limit)
             .select('title description startTime endTime problems participants')
             .lean();
 
@@ -40,11 +49,15 @@ exports.getAllContests = async (req, res) => {
 exports.getContestById = async (req, res) => {
     try {
         const contest = await Contest.findById(req.params.id)
-            .populate('problems', 'title slug difficulty')
+            .populate({ path: 'problems', select: 'title slug difficulty', match: { archivedAt: null } })
             .lean();
         if (!contest) return res.status(404).json({ message: 'Contest not found' });
         const { participants = [], ...detail } = contest;
-        res.json({ ...detail, participantCount: participants.length });
+        res.json({
+            ...detail,
+            participantCount: participants.length,
+            isRegistered: Boolean(req.user && participants.some((id) => String(id) === String(req.user.id))),
+        });
     } catch (err) {
         sendMongooseError(res, err);
     }
@@ -81,11 +94,17 @@ exports.updateContest = async (req, res) => {
                 updates[field] = req.body[field];
             }
         }
+        const current = await Contest.findById(req.params.id);
+        if (!current) return res.status(404).json({ message: 'Contest not found' });
+        const start = new Date(updates.startTime || current.startTime);
+        const end = new Date(updates.endTime || current.endTime);
+        if (Number.isNaN(start.valueOf()) || Number.isNaN(end.valueOf()) || end <= start) {
+            return res.status(400).json({ message: 'endTime must be after startTime' });
+        }
         const contest = await Contest.findByIdAndUpdate(req.params.id, updates, {
-            new: true,
+            returnDocument: 'after',
             runValidators: true,
         });
-        if (!contest) return res.status(404).json({ message: 'Contest not found' });
         res.json(contest);
     } catch (err) {
         sendMongooseError(res, err);
@@ -96,6 +115,7 @@ exports.deleteContest = async (req, res) => {
     try {
         const contest = await Contest.findByIdAndDelete(req.params.id);
         if (!contest) return res.status(404).json({ message: 'Contest not found' });
+        await Leaderboard.deleteMany({ contestId: contest._id });
         res.json({ message: 'Contest deleted' });
     } catch (err) {
         sendMongooseError(res, err);
@@ -104,17 +124,21 @@ exports.deleteContest = async (req, res) => {
 
 exports.registerForContest = async (req, res) => {
     try {
-        const contest = await Contest.findById(req.params.id);
-        if (!contest) return res.status(404).json({ message: 'Contest not found' });
-        
-        if (contest.participants.some((p) => String(p) === String(req.user.id))) {
-            return res.status(400).json({ message: 'Already registered' });
-        }
+        const now = new Date();
+        const contest = await Contest.findOneAndUpdate({
+            _id: req.params.id,
+            endTime: { $gt: now },
+            participants: { $ne: req.user.id },
+        }, {
+            $addToSet: { participants: req.user.id },
+        }, { returnDocument: 'after' });
+        if (contest) return res.json({ message: 'Registered successfully' });
 
-        contest.participants.push(req.user.id);
-        await contest.save();
-        res.json({ message: 'Registered successfully' });
+        const existing = await Contest.findById(req.params.id).select('endTime participants');
+        if (!existing) return res.status(404).json({ message: 'Contest not found' });
+        if (existing.endTime <= now) return res.status(409).json({ message: 'Contest registration has closed' });
+        return res.status(409).json({ message: 'Already registered' });
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        sendMongooseError(res, err);
     }
 };

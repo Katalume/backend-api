@@ -24,6 +24,7 @@ const leaderboardSchema = new mongoose.Schema({
   }
 });
 
+leaderboardSchema.index({ contestId: 1, userId: 1 }, { unique: true });
 // Compound index for efficient leaderboard queries
 leaderboardSchema.index({ contestId: 1, score: -1, lastSubmissionTime: 1 });
 

@@ -1,0 +1,5 @@
+# Legacy Judge0 configuration removed from the current tree. These two exact
+# fingerprints remain visible only in pre-production history; deployed values
+# must be rotated before launch. Do not broaden these exclusions.
+432a32d80d8b27ef731090f2c50ef6ecbe0d1244:judge0/judge0-v1.13.1/judge0.conf:generic-api-key:199
+432a32d80d8b27ef731090f2c50ef6ecbe0d1244:judge0/judge0-v1.13.1/judge0.conf:generic-api-key:223

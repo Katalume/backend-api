@@ -1,17 +1,17 @@
 const jwt = require('jsonwebtoken');
 const { JWT_ACCESS_SECRET, JWT_REFRESH_SECRET } = require('../config/env');
 
-const generateAccessToken = (user) => {
+const generateAccessToken = (user, sessionId) => {
     return jwt.sign(
-        { id: user._id, username: user.username, roles: user.roles },
+        { id: user._id, username: user.username, roles: user.roles, sid: sessionId },
         JWT_ACCESS_SECRET,
         { expiresIn: '15m' }
     );
 };
 
-const generateRefreshToken = (user) => {
+const generateRefreshToken = (user, sessionId) => {
     return jwt.sign(
-        { id: user._id },
+        { id: user._id, sid: sessionId },
         JWT_REFRESH_SECRET,
         { expiresIn: '7d' }
     );

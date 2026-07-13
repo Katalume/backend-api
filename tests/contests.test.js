@@ -101,7 +101,7 @@ describe('contests', () => {
         const second = await request(app)
             .post(`/api/contests/${created.body._id}/register`)
             .set('Authorization', `Bearer ${userTok}`);
-        expect(second.status).toBe(400);
+        expect(second.status).toBe(409);
     });
 });
 

@@ -1,46 +1,55 @@
-const judgeService = require('../services/judge.service');
+const mongoose = require('mongoose');
+const EvaluationJob = require('../models/EvaluationJob');
+const Problem = require('../models/Problem');
+const Testcase = require('../models/Testcase');
+const { enqueueJob, publicJob } = require('../services/evaluation.service');
 const { validateExecutionInput } = require('../utils/codeGuard');
 
-/**
- * Run code with custom input (no database save)
- * This is for testing purposes before submission
- */
 exports.runCode = async (req, res) => {
-  try {
-    const { code, languageId, customInput } = req.body;
-
-    const check = validateExecutionInput({ code, languageId });
-    if (!check.ok) {
-      return res.status(check.status).json({ message: check.message });
-    }
-
-    // Execute on Judge0 using the same pattern as submission controller
-    const result = await judgeService.execute(
-      Buffer.from(code).toString('base64'),
-      check.languageId,
-      Buffer.from(customInput || '').toString('base64'),
-      null // No expected output for custom runs
-    );
-
-    // Format response
-    const formattedResponse = {
-      status: result.status.description,
-      statusId: result.status.id,
-      stdout: result.stdout ? Buffer.from(result.stdout, 'base64').toString('utf-8') : '',
-      stderr: result.stderr ? Buffer.from(result.stderr, 'base64').toString('utf-8') : '',
-      compileOutput: result.compile_output ? Buffer.from(result.compile_output, 'base64').toString('utf-8') : '',
-      time: result.time,
-      memory: result.memory,
-      message: result.message
-    };
-
-    res.status(200).json(formattedResponse);
-
-  } catch (error) {
-    console.error('Run code error:', error);
-    res.status(500).json({ 
-      message: 'Server error during code execution',
-      error: error.message 
-    });
+  const { code, languageId, customInput, problemId } = req.body;
+  const check = validateExecutionInput({ code, languageId });
+  if (!check.ok) return res.status(check.status).json({ message: check.message });
+  if (Buffer.byteLength(customInput || '', 'utf8') > 65536) {
+    return res.status(413).json({ message: 'Custom input exceeds 65536 bytes' });
   }
+  let testcases = [{ stdin: customInput || '', expectedOutput: null }];
+  if (problemId) {
+    const problem = mongoose.Types.ObjectId.isValid(problemId)
+      && await Problem.findOne({ _id: problemId, archivedAt: null }).select('testcaseVersion');
+    if (!problem) {
+      return res.status(400).json({ message: 'A valid problemId is required' });
+    }
+    const publicCases = await Testcase.find({
+      problemId,
+      version: problem.testcaseVersion,
+      isPublic: true,
+    }).lean();
+    if (publicCases.length) {
+      testcases = publicCases.map((testcase) => ({
+        stdin: testcase.input,
+        expectedOutput: testcase.expectedOutput,
+        cpuTimeLimit: testcase.timeLimit,
+        memoryLimit: testcase.memoryLimit,
+      }));
+    }
+  }
+  const job = await enqueueJob({
+    kind: 'run',
+    userId: req.user.id,
+    sourceCode: code,
+    languageId: check.languageId,
+    testcases,
+  });
+  res.location(`/api/runner/jobs/${job._id}`);
+  return res.status(202).json(publicJob(job));
+};
+
+exports.getRun = async (req, res) => {
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    return res.status(400).json({ message: 'Invalid evaluation job id' });
+  }
+  const job = await EvaluationJob.findOne({ _id: req.params.id, userId: req.user.id, kind: 'run' });
+  if (!job) return res.status(404).json({ message: 'Evaluation job not found' });
+  res.set('Cache-Control', 'no-store');
+  return res.json(publicJob(job));
 };

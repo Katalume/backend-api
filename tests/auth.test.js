@@ -17,6 +17,7 @@ describe('POST /api/auth/signup', () => {
         expect(res.body.user.roles).toEqual(['User']);
         const cookies = res.headers['set-cookie'].join(';');
         expect(cookies).toMatch(/mlboost_session=/);
+        expect(cookies).toMatch(/mlboost_access=/);
         expect(cookies).toMatch(/HttpOnly/);
         expect(cookies).toMatch(/SameSite=Strict/);
     });
@@ -107,6 +108,14 @@ describe('token-protected routes', () => {
         expect(res.body.password).toBeUndefined();
     });
 
+    test('accepts the httpOnly access cookie without browser-readable bearer storage', async () => {
+        const agent = request.agent(app);
+        await agent.post('/api/auth/signup').send(validUser).expect(201);
+        const res = await agent.get('/api/users/me');
+        expect(res.status).toBe(200);
+        expect(res.body.email).toBe(validUser.email);
+    });
+
     test('rejects a garbage token', async () => {
         const res = await request(app)
             .get('/api/users/me')
@@ -122,6 +131,10 @@ describe('POST /api/auth/refresh', () => {
         const res = await request(app).post('/api/auth/refresh').set('Cookie', cookie);
         expect(res.status).toBe(200);
         expect(res.body.accessToken).toBeTruthy();
+        expect(res.headers['set-cookie'].join(';')).toMatch(/mlboost_session=/);
+        const reused = await request(app).post('/api/auth/refresh').set('Cookie', cookie);
+        expect(reused.status).toBe(403);
+        expect(reused.body.message).toMatch(/reuse/i);
     });
 
     test('rejects when no refresh cookie is present', async () => {
@@ -146,7 +159,7 @@ describe('GET /api/auth/session', () => {
         const forged = await request(app)
             .get('/api/auth/session')
             .set('Cookie', 'mlboost_session=forged');
-        expect(forged.status).toBe(403);
+        expect(forged.status).toBe(401);
     });
 
     test('logout clears the session and invalidates subsequent checks', async () => {
@@ -156,5 +169,44 @@ describe('GET /api/auth/session', () => {
         expect(logout.status).toBe(204);
         expect(logout.headers['set-cookie'].join(';')).toMatch(/mlboost_session=;/);
         expect((await agent.get('/api/auth/session')).status).toBe(401);
+    });
+});
+
+describe('account lifecycle', () => {
+    test('changes password and revokes other sessions', async () => {
+        await request(app).post('/api/auth/signup').send(validUser);
+        const first = await request(app).post('/api/auth/login').send({
+            email: validUser.email, password: validUser.password,
+        });
+        const second = await request(app).post('/api/auth/login').send({
+            email: validUser.email, password: validUser.password,
+        });
+        const changed = await request(app)
+            .put('/api/auth/password')
+            .set('Authorization', `Bearer ${first.body.accessToken}`)
+            .send({ currentPassword: validUser.password, newPassword: 'new-password-123' });
+        expect(changed.status).toBe(204);
+        expect((await request(app).get('/api/users/me').set('Authorization', `Bearer ${second.body.accessToken}`)).status).toBe(403);
+        expect((await request(app).post('/api/auth/login').send({ email: validUser.email, password: validUser.password })).status).toBe(401);
+        expect((await request(app).post('/api/auth/login').send({ email: validUser.email, password: 'new-password-123' })).status).toBe(200);
+    });
+
+    test('exports and permanently deletes the authenticated account', async () => {
+        const signup = await request(app).post('/api/auth/signup').send(validUser);
+        const auth = { Authorization: `Bearer ${signup.body.accessToken}` };
+        const exported = await request(app).get('/api/auth/account').set(auth);
+        expect(exported.status).toBe(200);
+        expect(exported.headers['content-disposition']).toMatch(/attachment/);
+        expect(exported.body.user.email).toBe(validUser.email);
+        expect(exported.body.user.password).toBeUndefined();
+
+        const deleted = await request(app)
+            .delete('/api/auth/account')
+            .set(auth)
+            .send({ password: validUser.password });
+        expect(deleted.status).toBe(204);
+        expect((await request(app).post('/api/auth/login').send({
+            email: validUser.email, password: validUser.password,
+        })).status).toBe(401);
     });
 });
