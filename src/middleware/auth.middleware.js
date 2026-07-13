@@ -6,7 +6,7 @@ const { ALLOW_BEARER_AUTH } = require('../config/env');
 function accessToken(req) {
     const authHeader = req.headers.authorization;
     const bearer = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
-    return req.cookies?.mlboost_access || (ALLOW_BEARER_AUTH ? bearer : null);
+    return req.cookies?.katalume_access || (ALLOW_BEARER_AUTH ? bearer : null);
 }
 
 exports.verifyToken = async (req, res, next) => {

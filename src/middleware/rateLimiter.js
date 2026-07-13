@@ -9,7 +9,7 @@ const skip = () => process.env.NODE_ENV === 'test';
 function store(prefix) {
     if (!REDIS_URL) return undefined;
     return new RedisStore({
-        prefix: `mlboost:${prefix}:`,
+        prefix: `katalume:${prefix}:`,
         sendCommand: (...args) => client.sendCommand(args),
     });
 }

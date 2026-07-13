@@ -13,7 +13,7 @@ if (!process.env.MONGO_URI) {
 
 const seed = async () => {
   try {
-    await mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/leetcode-clone');
+    await mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/katalume');
     console.log('Connected to MongoDB');
 
     const title = 'Two Sum';

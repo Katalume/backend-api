@@ -1,7 +1,7 @@
 {
-  "name": "mlboostapi",
+  "name": "katalume-api",
   "version": "1.0.0",
-  "description": "backend for our platform mlboost",
+  "description": "Backend API and evaluation worker for Katalume",
   "license": "ISC",
   "author": "",
   "packageManager": "npm@11.16.0",

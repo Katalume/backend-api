@@ -6,8 +6,8 @@ const { generateAccessToken, generateRefreshToken, verifyRefreshToken } = requir
 const { NODE_ENV, COOKIE_DOMAIN, COOKIE_SAME_SITE } = require('../config/env');
 
 const ALLOWED_ROLES = ['User', 'Organization'];
-const SESSION_COOKIE = 'mlboost_session';
-const ACCESS_COOKIE = 'mlboost_access';
+const SESSION_COOKIE = 'katalume_session';
+const ACCESS_COOKIE = 'katalume_access';
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const ACCESS_TTL_MS = 15 * 60 * 1000;
 
@@ -237,7 +237,7 @@ exports.exportAccount = async (req, res) => {
         Contest.find({ participants: req.user.id }).select('title startTime endTime').lean(),
     ]);
     if (!user) return res.status(404).json({ message: 'User not found' });
-    res.set('Content-Disposition', 'attachment; filename="mlboost-account-export.json"');
+    res.set('Content-Disposition', 'attachment; filename="katalume-account-export.json"');
     return res.json({ exportedAt: new Date().toISOString(), user, submissions, contests });
 };
 

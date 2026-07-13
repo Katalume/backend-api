@@ -16,8 +16,8 @@ describe('POST /api/auth/signup', () => {
         expect(res.body.user.email).toBe('alice@example.com');
         expect(res.body.user.roles).toEqual(['User']);
         const cookies = res.headers['set-cookie'].join(';');
-        expect(cookies).toMatch(/mlboost_session=/);
-        expect(cookies).toMatch(/mlboost_access=/);
+        expect(cookies).toMatch(/katalume_session=/);
+        expect(cookies).toMatch(/katalume_access=/);
         expect(cookies).toMatch(/HttpOnly/);
         expect(cookies).toMatch(/SameSite=Strict/);
     });
@@ -131,7 +131,7 @@ describe('POST /api/auth/refresh', () => {
         const res = await request(app).post('/api/auth/refresh').set('Cookie', cookie);
         expect(res.status).toBe(200);
         expect(res.body.accessToken).toBeTruthy();
-        expect(res.headers['set-cookie'].join(';')).toMatch(/mlboost_session=/);
+        expect(res.headers['set-cookie'].join(';')).toMatch(/katalume_session=/);
         const reused = await request(app).post('/api/auth/refresh').set('Cookie', cookie);
         expect(reused.status).toBe(403);
         expect(reused.body.message).toMatch(/reuse/i);
@@ -158,7 +158,7 @@ describe('GET /api/auth/session', () => {
         expect((await request(app).get('/api/auth/session')).status).toBe(401);
         const forged = await request(app)
             .get('/api/auth/session')
-            .set('Cookie', 'mlboost_session=forged');
+            .set('Cookie', 'katalume_session=forged');
         expect(forged.status).toBe(401);
     });
 
@@ -167,7 +167,7 @@ describe('GET /api/auth/session', () => {
         await agent.post('/api/auth/signup').send(validUser).expect(201);
         const logout = await agent.post('/api/auth/logout');
         expect(logout.status).toBe(204);
-        expect(logout.headers['set-cookie'].join(';')).toMatch(/mlboost_session=;/);
+        expect(logout.headers['set-cookie'].join(';')).toMatch(/katalume_session=;/);
         expect((await agent.get('/api/auth/session')).status).toBe(401);
     });
 });

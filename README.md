@@ -1,9 +1,13 @@
-# MLBoost backend-api
+# Katalume backend-api
 
-Node.js / Express API for **MLBoost** — an interactive platform for practicing
-machine learning and data science, think **LeetCode meets Kaggle** for ML
-students. Users solve ML/DS problems in the browser, run and submit code against
-hidden test cases, join contests, and track progress.
+**Practice machine learning into mastery.**
+
+Katalume is the training ground for machine learning — solve real ML problems
+in an in-browser judge, compete in contests, and climb to mastery. LeetCode
+rigor meets Kaggle depth.
+
+The name combines **kata**, deliberate practice that forges mastery, with
+**lume**, light or illumination—the moment a hard problem clicks.
 
 This service handles auth, problems, contests, leaderboards, and the
 running/judging of user code submissions through [Judge0](https://judge0.com/).
@@ -84,8 +88,8 @@ CI runs the suite and enforced thresholds on every push/PR to `main`.
 ## Docker
 
 ```bash
-docker build -t mlboost-api .
-docker run --env-file .env -p 5001:5001 mlboost-api
+docker build -t katalume-api .
+docker run --env-file .env -p 5001:5001 katalume-api
 ```
 
 CI enforces coverage, production audits, full-history secret scanning, and a
