@@ -86,6 +86,7 @@ app.use('/api', rejectUnsafeInput);
 app.use('/api', apiLimiter);
 
 // Routes (auth + execution endpoints get stricter dedicated limiters)
+app.use('/api/auth', require('./routes/oauth.routes'));
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/problems', problemRoutes);

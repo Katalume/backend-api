@@ -253,3 +253,10 @@ exports.deleteAccount = async (req, res) => {
     res.clearCookie(ACCESS_COOKIE, options);
     return res.status(204).send();
 };
+
+// Shared session primitives, reused by the OAuth controller so a social login
+// issues the exact same signed session cookies as an email/password login.
+exports.createSession = createSession;
+exports.setSessionCookies = setSessionCookies;
+exports.resolveUsername = resolveUsername;
+exports.publicUser = publicUser;
