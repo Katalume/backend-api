@@ -85,4 +85,16 @@ module.exports = {
     EVALUATION_WORKER_POLL_MS: positiveInt('EVALUATION_WORKER_POLL_MS', 500, { min: 50, max: 10000 }),
     EVALUATION_JOB_MAX_ATTEMPTS: positiveInt('EVALUATION_JOB_MAX_ATTEMPTS', 3, { max: 10 }),
     EVALUATION_JOB_RETENTION_DAYS: positiveInt('EVALUATION_JOB_RETENTION_DAYS', 7, { max: 90 }),
+    // OAuth / social login. A provider is enabled only when BOTH its client id
+    // and secret are set, so missing values simply disable that provider (never fatal).
+    GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || '',
+    GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET || '',
+    GITHUB_CLIENT_ID: process.env.GITHUB_CLIENT_ID || '',
+    GITHUB_CLIENT_SECRET: process.env.GITHUB_CLIENT_SECRET || '',
+    // Public base URL of THIS backend — used to build the OAuth redirect URI:
+    //   {OAUTH_CALLBACK_BASE_URL}/api/auth/oauth/{provider}/callback
+    OAUTH_CALLBACK_BASE_URL:
+        process.env.OAUTH_CALLBACK_BASE_URL || `http://localhost:${process.env.BACKEND_PORT || 5001}`,
+    // Where the browser is sent after a social login completes (the web app origin).
+    FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:3000',
 };
