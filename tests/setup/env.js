@@ -11,3 +11,5 @@ process.env.GITHUB_CLIENT_ID = 'test-github-id';
 process.env.GITHUB_CLIENT_SECRET = 'test-github-secret';
 process.env.OAUTH_CALLBACK_BASE_URL = 'https://api.test.katalume.dev';
 process.env.FRONTEND_URL = 'https://app.test.katalume.dev';
+// Enable the content-import endpoint for its test suite.
+process.env.PROBLEMS_IMPORT_TOKEN = 'test-import-token-0123456789abcdef';

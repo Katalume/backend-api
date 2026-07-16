@@ -26,6 +26,11 @@ app.disable('x-powered-by');
 // Security headers
 app.use(helmet());
 
+// Content-pipeline import (service-token auth). Mounted before the global
+// 100kb JSON parser because a catalog bundle is several MB; the route carries
+// its own parser and auth runs before any body is read.
+app.use('/api/import', require('./routes/import.routes'));
+
 // Body parsing with a size limit to bound request payloads
 app.use(express.json({ limit: '100kb' }));
 app.use(cookieParser());

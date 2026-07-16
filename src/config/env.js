@@ -106,4 +106,7 @@ module.exports = {
         process.env.OAUTH_CALLBACK_BASE_URL || `http://localhost:${process.env.BACKEND_PORT || 5001}`,
     // Where the browser is sent after a social login completes (the web app origin).
     FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:3000',
+    // Service token for the ml-problems content pipeline (POST /api/import/problems).
+    // The endpoint is disabled (503) until this is set.
+    PROBLEMS_IMPORT_TOKEN: process.env.PROBLEMS_IMPORT_TOKEN || '',
 };
