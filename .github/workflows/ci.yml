@@ -39,3 +39,12 @@ jobs:
 
       - name: Build production container
         run: docker build --tag katalume-backend:${{ github.sha }} .
+
+      - name: Validate production Compose manifests
+        run: |
+          KATALUME_ENV_FILE=api.env.example docker compose \
+            --env-file deploy/production/api.env.example \
+            -f deploy/production/docker-compose.yml config --quiet
+          docker compose \
+            --env-file judge0/judge0-v1.13.1/judge0.conf \
+            -f judge0/judge0-v1.13.1/docker-compose.yml config --quiet

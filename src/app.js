@@ -7,7 +7,7 @@ const crypto = require('crypto');
 const connectDB = require('./config/db');
 const { client: redisClient, connectRedis, closeRedis } = require('./config/redis');
 const logger = require('./utils/logger');
-const { BACKEND_PORT, CORS_ORIGIN, TRUST_PROXY, REDIS_URL } = require('./config/env');
+const { BACKEND_PORT, CORS_ORIGIN, TRUST_PROXY, REDIS_URL, EXECUTION_MODE } = require('./config/env');
 const { apiLimiter, authLimiter } = require('./middleware/rateLimiter');
 const { rejectUnsafeInput } = require('./middleware/requestGuard');
 
@@ -77,6 +77,7 @@ app.get('/ready', (req, res) => {
     res.status(ready ? 200 : 503).json({
         status: ready ? 'ready' : 'not_ready',
         dependencies,
+        execution: EXECUTION_MODE,
         requestId: req.requestId,
     });
 });

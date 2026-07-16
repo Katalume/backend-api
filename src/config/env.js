@@ -5,6 +5,11 @@ require('dotenv').config({ path: path.join(__dirname, '../../.env') });
 
 const NODE_ENV = process.env.NODE_ENV || 'development';
 const isProd = NODE_ENV === 'production';
+const EXECUTION_MODE = (process.env.EXECUTION_MODE || 'judge0').toLowerCase();
+
+if (!['judge0', 'disabled'].includes(EXECUTION_MODE)) {
+    throw new Error('EXECUTION_MODE must be either judge0 or disabled');
+}
 
 /**
  * Read a required secret. In production a missing value is fatal (fail fast)
@@ -48,13 +53,17 @@ if (isProd && (
     !process.env.MONGO_URI
     || !process.env.REDIS_URL
     || !process.env.CORS_ORIGIN
-    || !process.env.JUDGE0_AUTH_TOKEN
+    || (EXECUTION_MODE === 'judge0' && !process.env.JUDGE0_AUTH_TOKEN)
 )) {
-    throw new Error('MONGO_URI, REDIS_URL, CORS_ORIGIN, and JUDGE0_AUTH_TOKEN are required in production');
+    throw new Error(
+        'MONGO_URI, REDIS_URL, and CORS_ORIGIN are required in production; '
+        + 'JUDGE0_AUTH_TOKEN is also required when EXECUTION_MODE=judge0'
+    );
 }
 
 module.exports = {
     NODE_ENV,
+    EXECUTION_MODE,
     BACKEND_PORT: positiveInt('BACKEND_PORT', 5001, { max: 65535 }),
     TRUST_PROXY: positiveInt('TRUST_PROXY', 0, { min: 0, max: 10 }),
     MONGO_URI: process.env.MONGO_URI || 'mongodb://localhost:27017/katalume',

@@ -11,7 +11,10 @@ services:
     volumes:
       - ./judge0.conf:/judge0.conf:ro
     ports:
-      - "2358:2358"
+      # Bind Judge0 to loopback by default. Production sets this to the
+      # Droplet's private VPC address so the API host can reach it without
+      # exposing privileged code execution to the public internet.
+      - "${JUDGE0_BIND_ADDRESS:-127.0.0.1}:2358:2358"
     privileged: true
     environment:
       - USE_ADVANCED_ISOLATE_FEATURES=false

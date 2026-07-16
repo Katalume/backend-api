@@ -71,6 +71,8 @@ ADMIN_EMAIL=you@example.com ADMIN_USERNAME=admin ADMIN_PASSWORD='a-strong-passwo
 
 Set a strong Judge0 `AUTHN_TOKEN` and matching backend `JUDGE0_AUTH_TOKEN`. Keep
 port 2358 private, deny user-program network access, and bound every resource.
+The bundled Compose manifest binds it to loopback by default; production must
+set `JUDGE0_BIND_ADDRESS` to the isolated host's private VPC address.
 
 ## Testing
 
@@ -91,6 +93,12 @@ CI runs the suite and enforced thresholds on every push/PR to `main`.
 docker build -t katalume-api .
 docker run --env-file .env -p 5001:5001 katalume-api
 ```
+
+The current zero-cost launch profile is documented in
+[`deploy/free-beta`](deploy/free-beta/README.md). It keeps server execution
+disabled and uses the frontend's browser sandbox for unranked practice. The
+reviewed two-host Judge0 topology remains in [`deploy/production`](deploy/production/README.md)
+as the clean paid upgrade path.
 
 CI enforces coverage, production audits, full-history secret scanning, and a
 clean non-root Node 24 image build.
