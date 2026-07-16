@@ -5,6 +5,7 @@ const { verifyToken, authorizeRoles, optionalAuth } = require('../middleware/aut
 const { auditAction } = require('../middleware/audit');
 
 router.get('/', optionalAuth, problemController.getProblems);
+router.get('/:slug/practice', problemController.getPracticeTestcases);
 router.get('/:slug', optionalAuth, problemController.getProblemBySlug);
 router.post('/', verifyToken, authorizeRoles('Admin'), auditAction('problem.create', 'Problem'), problemController.createProblem);
 router.put('/:id', verifyToken, authorizeRoles('Admin'), auditAction('problem.update', 'Problem'), problemController.updateProblem);

@@ -136,6 +136,60 @@ describe('reading problems', () => {
         expect(res.body.starterCode).toBe(problemBody.starterCode);
     });
 
+    test('GET /api/problems/:slug/practice returns the active browser-practice suite', async () => {
+        const token = await adminToken();
+        const created = await request(app)
+            .post('/api/problems')
+            .set('Authorization', `Bearer ${token}`)
+            .send({
+                ...problemBody,
+                testcases: [
+                    {
+                        input: '{"value":1}',
+                        expectedOutput: '1',
+                        isPublic: true,
+                        timeLimit: 1,
+                        memoryLimit: 64000,
+                    },
+                    {
+                        input: '{"value":2}',
+                        expectedOutput: '2',
+                        isPublic: false,
+                    },
+                ],
+            });
+
+        const res = await request(app).get(`/api/problems/${created.body.slug}/practice`);
+        expect(res.status).toBe(200);
+        expect(res.headers['cache-control']).toBe('no-store');
+        expect(res.body).toMatchObject({
+            problemId: created.body._id,
+            slug: created.body.slug,
+            testcaseVersion: 1,
+        });
+        expect(res.body.testcases).toEqual([
+            {
+                input: '{"value":1}',
+                expectedOutput: '1',
+                isPublic: true,
+                timeLimit: 1,
+                memoryLimit: 64000,
+            },
+            {
+                input: '{"value":2}',
+                expectedOutput: '2',
+                isPublic: false,
+                timeLimit: 2,
+                memoryLimit: 128000,
+            },
+        ]);
+    });
+
+    test('GET /api/problems/:slug/practice returns 404 for an unknown problem', async () => {
+        const res = await request(app).get('/api/problems/does-not-exist/practice');
+        expect(res.status).toBe(404);
+    });
+
     test('keeps editorials locked until the authenticated user has an accepted submission', async () => {
         const token = await adminToken();
         const created = await request(app)

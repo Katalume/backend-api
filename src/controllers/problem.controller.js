@@ -234,6 +234,38 @@ exports.getProblems = async (req, res) => {
   }
 };
 
+exports.getPracticeTestcases = async (req, res) => {
+  try {
+    const problem = await Problem.findOne({
+      slug: req.params.slug,
+      archivedAt: null,
+    }).select('_id slug testcaseVersion').lean();
+    if (!problem) return res.status(404).json({ message: 'Problem not found' });
+
+    // Browser practice is intentionally non-adversarial: the current free-beta
+    // runner already receives its full deterministic suite client-side. Serving
+    // the active version here lets repository-imported problems use that same
+    // execution path without rebuilding the frontend catalog on every content
+    // merge.
+    const testcases = await Testcase.find({
+      problemId: problem._id,
+      version: problem.testcaseVersion,
+    }, 'input expectedOutput isPublic timeLimit memoryLimit -_id')
+      .sort({ _id: 1 })
+      .lean();
+
+    res.set('Cache-Control', 'no-store');
+    return res.json({
+      problemId: String(problem._id),
+      slug: problem.slug,
+      testcaseVersion: problem.testcaseVersion,
+      testcases,
+    });
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error' });
+  }
+};
+
 exports.getProblemBySlug = async (req, res) => {
   try {
     const problem = await Problem.findOne({ slug: req.params.slug, archivedAt: null });
