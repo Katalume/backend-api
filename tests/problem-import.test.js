@@ -160,3 +160,25 @@ describe('POST /api/import/problems — review fixes', () => {
         expect((await Problem.findOne({ slug: 'sample-problem' })).archivedAt).toBeNull();
     });
 });
+
+describe('POST /api/import/problems — rollback boundary', () => {
+    test('cleanup failure after the version switch never deletes the new testcases', async () => {
+        await post({ problems: [makeProblem()] });
+        const original = jest.spyOn(Testcase, 'deleteMany')
+            .mockRejectedValueOnce(new Error('simulated cleanup outage'));
+
+        const changed = makeProblem({ title: 'Sample Problem v2' });
+        const res = await post({ problems: [changed] });
+        original.mockRestore();
+
+        expect(res.status).toBe(500);
+        const problem = await Problem.findOne({ slug: 'sample-problem' });
+        // The switch already happened, so the problem must sit consistently on
+        // version 2 with its new testcases intact (old rows merely orphaned).
+        expect(problem.testcaseVersion).toBe(2);
+        expect(problem.title).toBe('Sample Problem v2');
+        const newCases = await Testcase.find({ problemId: problem._id, version: 2 });
+        expect(newCases).toHaveLength(2);
+        expect(problem.testcases).toHaveLength(2);
+    });
+});

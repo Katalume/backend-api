@@ -178,6 +178,7 @@ async function importProblems(payload) {
             || await Problem.create({ ...fields, slug: spec.slug, testcaseVersion: 1, contentVersion: 1 });
         const nextVersion = existing ? existing.testcaseVersion + 1 : 1;
         let inserted = [];
+        let switched = false;
         try {
             inserted = await Testcase.insertMany(cases.map((tc) => ({
                 ...tc,
@@ -194,7 +195,7 @@ async function importProblems(payload) {
                     testcaseVersion: existing.testcaseVersion,
                 }
                 : { _id: problem._id };
-            const switched = await Problem.updateOne(guard, {
+            const write = await Problem.updateOne(guard, {
                 $set: {
                     ...fields,
                     importedAt: new Date(),
@@ -203,19 +204,25 @@ async function importProblems(payload) {
                     testcases: inserted.map((tc) => tc._id),
                 },
             });
-            if (switched.matchedCount !== 1) {
+            if (write.matchedCount !== 1) {
                 throw new Error(`Concurrent content update: ${spec.slug}`);
             }
-            // Old-version cleanup runs after the switch; a failure here leaves
-            // orphaned rows of a superseded version, not a broken problem.
-            await Testcase.deleteMany({ problemId: problem._id, version: { $ne: nextVersion } });
+            switched = true;
         } catch (error) {
-            if (inserted.length) {
-                await Testcase.deleteMany({ _id: { $in: inserted.map((tc) => tc._id) } });
+            // Roll back ONLY when the guarded switch never happened. After a
+            // successful switch the problem already points at the new version,
+            // so deleting the new testcases here would corrupt it.
+            if (!switched) {
+                if (inserted.length) {
+                    await Testcase.deleteMany({ _id: { $in: inserted.map((tc) => tc._id) } });
+                }
+                if (!existing) await Problem.deleteOne({ _id: problem._id });
             }
-            if (!existing) await Problem.deleteOne({ _id: problem._id });
             throw error;
         }
+        // Old-version cleanup sits OUTSIDE the rollback scope: a failure here
+        // leaves orphaned rows of a superseded version, never a broken problem.
+        await Testcase.deleteMany({ problemId: problem._id, version: { $ne: nextVersion } });
         summary[existing ? 'updated' : 'created'] += 1;
     }
 
