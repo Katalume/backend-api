@@ -39,9 +39,13 @@ exports.createProblem = async (req, res) => {
       title,
       description,
       difficulty,
+      category,
+      summary,
+      acceptanceRate,
       tags,
       starterCode,
       constraints,
+      hints,
       sampleTestCases,
       editorial,
       testcases,
@@ -62,9 +66,13 @@ exports.createProblem = async (req, res) => {
       slug,
       description,
       difficulty,
+      category,
+      summary,
+      acceptanceRate,
       tags,
       starterCode,
       constraints,
+      hints,
       sampleTestCases,
       editorial,
     });
@@ -96,9 +104,13 @@ exports.updateProblem = async (req, res) => {
       'title',
       'description',
       'difficulty',
+      'category',
+      'summary',
+      'acceptanceRate',
       'tags',
       'starterCode',
       'constraints',
+      'hints',
       'editorial',
       'sampleTestCases',
     ];
@@ -175,14 +187,14 @@ exports.getProblems = async (req, res) => {
       return res.status(400).json({ message: 'Invalid tags filter' });
     }
     const filter = { archivedAt: null, ...(tags.length ? { tags: { $in: tags } } : {}) };
-    const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 100);
+    const limit = Math.min(Math.max(Number(req.query.limit) || 200, 1), 200);
     if (req.query.before) {
       if (!require('mongoose').Types.ObjectId.isValid(req.query.before)) {
         return res.status(400).json({ message: 'Invalid before cursor' });
       }
       filter._id = { $lt: req.query.before };
     }
-    const problems = await Problem.find(filter, 'title slug difficulty tags')
+    const problems = await Problem.find(filter, 'title slug difficulty category summary acceptanceRate tags')
       .sort({ _id: -1 })
       .limit(limit)
       .lean();

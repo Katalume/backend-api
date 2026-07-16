@@ -9,8 +9,10 @@ rigor meets Kaggle depth.
 The name combines **kata**, deliberate practice that forges mastery, with
 **lume**, light or illumination—the moment a hard problem clicks.
 
-This service handles auth, problems, contests, leaderboards, and the
-running/judging of user code submissions through [Judge0](https://judge0.com/).
+This service handles auth, versioned problem content, progress, contests, and
+leaderboards. Server judging through [Judge0](https://judge0.com/) is an
+optional upgrade; the zero-cost beta deliberately disables it and uses the
+frontend's local practice worker.
 
 ## Stack
 
@@ -54,6 +56,11 @@ npm run seed
 ADMIN_EMAIL=you@example.com ADMIN_USERNAME=admin ADMIN_PASSWORD='a-strong-password' \
   node scripts/seedAdmin.js
 ```
+
+The deterministic launch catalog contains 126 problems (42 Easy, 42 Medium,
+42 Hard) and 3,486 cases. Easy problems have 8 cases, Medium 25, and Hard 50.
+Regenerate both backend and frontend copies with `npm run catalog:generate`;
+the test suite rejects generator drift and verifies idempotent version swaps.
 
 ## API overview
 

@@ -23,6 +23,24 @@ const problemSchema = new mongoose.Schema({
     enum: ['Easy', 'Medium', 'Hard'],
     default: 'Medium'
   },
+  category: {
+    type: String,
+    trim: true,
+    maxlength: 80,
+    default: 'General'
+  },
+  summary: {
+    type: String,
+    trim: true,
+    maxlength: 500,
+    default: ''
+  },
+  acceptanceRate: {
+    type: Number,
+    min: 0,
+    max: 100,
+    default: 0
+  },
   tags: [{
     type: String,
     trim: true,
@@ -35,6 +53,9 @@ const problemSchema = new mongoose.Schema({
     maxlength: 100000
   },
   constraints: [{
+    type: String
+  }],
+  hints: [{
     type: String
   }],
   sampleTestCases: [{

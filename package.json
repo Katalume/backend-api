@@ -18,7 +18,8 @@
     "migrate": "node scripts/migrate.js",
     "dev": "node --watch src/app.js",
     "dev:memory": "node scripts/devServer.js",
-    "seed": "node scripts/seedData.js"
+    "seed": "node scripts/seedData.js",
+    "catalog:generate": "node scripts/generateProblemCatalog.js data/problem-catalog.json ../frontend/src/data/problem-catalog.json"
   },
   "dependencies": {
     "axios": "^1.13.2",
