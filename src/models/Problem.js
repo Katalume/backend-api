@@ -90,6 +90,12 @@ const problemSchema = new mongoose.Schema({
     type: Date,
     default: null
   },
+  // Set by the content-pipeline import; marks problems the ml-problems repo
+  // manages (only these are ever auto-archived when absent from a bundle).
+  importedAt: {
+    type: Date,
+    default: null
+  },
   createdAt: {
     type: Date,
     default: Date.now
