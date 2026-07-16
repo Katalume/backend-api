@@ -93,6 +93,13 @@ app.use('/api', apiLimiter);
 
 // Routes (auth + execution endpoints get stricter dedicated limiters)
 app.use('/api/auth', require('./routes/oauth.routes'));
+// Session validation and token refresh are hit on ordinary navigation (every
+// protected page load), not credential guessing, so they stay OFF the strict
+// auth brute-force limiter — otherwise an active browsing session trips a 429
+// and gets logged out. They still sit behind the general /api limiter above.
+const authController = require('./controllers/auth.controller');
+app.get('/api/auth/session', authController.session);
+app.post('/api/auth/refresh', authController.refresh);
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/problems', problemRoutes);
