@@ -27,6 +27,9 @@ function validateProblem(spec, index) {
     assertString(spec.title, `${label}.title`, 160);
     assertString(spec.description, `${label}.description`, 50000);
     assertString(spec.starterCode, `${label}.starterCode`, 100000);
+    if (spec.category != null) {
+        assertString(spec.category, `${label}.category`, 80);
+    }
     if (!DIFFICULTIES.has(spec.difficulty)) {
         throw new ImportValidationError(`${label}.difficulty must be Easy|Medium|Hard`);
     }
@@ -63,6 +66,7 @@ function normalizedFields(spec) {
         tags: spec.tags,
         constraints: spec.constraints || [],
         starterCode: spec.starterCode,
+        category: spec.category || 'General',
         sampleTestCases: (spec.sampleTestCases || []).map((s) => ({
             input: s.input,
             output: s.output,
@@ -111,6 +115,7 @@ function isUnchanged(spec, existing, existingTestcases) {
         : undefined;
 
     const fieldsSame = existing.title === incoming.title
+        && existing.category === incoming.category
         && existing.description === incoming.description
         && existing.difficulty === incoming.difficulty
         && JSON.stringify(existing.tags) === JSON.stringify(incoming.tags)
@@ -179,34 +184,31 @@ async function importProblems(payload) {
                 problemId: problem._id,
                 version: nextVersion,
             })));
-            if (existing) {
-                const switched = await Problem.updateOne({
+            // Single guarded write switches fields, versions AND testcase refs
+            // together, so a crash on either side of it leaves the problem
+            // consistently on the old or the new version - never in between.
+            const guard = existing
+                ? {
                     _id: problem._id,
                     contentVersion: existing.contentVersion,
                     testcaseVersion: existing.testcaseVersion,
-                }, {
-                    $set: {
-                        ...fields,
-                        testcaseVersion: nextVersion,
-                        contentVersion: existing.contentVersion + 1,
-                    },
-                });
-                if (switched.modifiedCount !== 1) {
-                    throw new Error(`Concurrent content update: ${spec.slug}`);
                 }
-            } else {
-                await Problem.updateOne(
-                    { _id: problem._id },
-                    { $set: { testcases: inserted.map((tc) => tc._id) } }
-                );
+                : { _id: problem._id };
+            const switched = await Problem.updateOne(guard, {
+                $set: {
+                    ...fields,
+                    importedAt: new Date(),
+                    testcaseVersion: nextVersion,
+                    contentVersion: existing ? existing.contentVersion + 1 : 1,
+                    testcases: inserted.map((tc) => tc._id),
+                },
+            });
+            if (switched.matchedCount !== 1) {
+                throw new Error(`Concurrent content update: ${spec.slug}`);
             }
+            // Old-version cleanup runs after the switch; a failure here leaves
+            // orphaned rows of a superseded version, not a broken problem.
             await Testcase.deleteMany({ problemId: problem._id, version: { $ne: nextVersion } });
-            if (existing) {
-                await Problem.updateOne(
-                    { _id: problem._id },
-                    { $set: { testcases: inserted.map((tc) => tc._id) } }
-                );
-            }
         } catch (error) {
             if (inserted.length) {
                 await Testcase.deleteMany({ _id: { $in: inserted.map((tc) => tc._id) } });
@@ -215,6 +217,18 @@ async function importProblems(payload) {
             throw error;
         }
         summary[existing ? 'updated' : 'created'] += 1;
+    }
+
+    // Optional: the repo is the source of truth for pipeline-managed problems,
+    // so a bundle sent with archiveMissing archives previously imported
+    // problems that are no longer in it. Problems seeded by other means
+    // (importedAt: null) are never touched.
+    if (payload.archiveMissing === true) {
+        const archived = await Problem.updateMany(
+            { importedAt: { $ne: null }, archivedAt: null, slug: { $nin: slugs } },
+            { $set: { archivedAt: new Date() } }
+        );
+        summary.archived = archived.modifiedCount;
     }
     return summary;
 }

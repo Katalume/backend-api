@@ -132,3 +132,31 @@ describe('POST /api/import/problems — upsert lifecycle', () => {
         expect(res.body.created).toBe(1);
     });
 });
+
+describe('POST /api/import/problems — review fixes', () => {
+    test('persists the category and detects category-only changes', async () => {
+        await post({ problems: [makeProblem({ category: 'Model Evaluation' })] });
+        let problem = await Problem.findOne({ slug: 'sample-problem' });
+        expect(problem.category).toBe('Model Evaluation');
+        expect(problem.importedAt).toBeTruthy();
+
+        const res = await post({ problems: [makeProblem({ category: 'NLP' })] });
+        expect(res.body).toMatchObject({ updated: 1 });
+        problem = await Problem.findOne({ slug: 'sample-problem' });
+        expect(problem.category).toBe('NLP');
+    });
+
+    test('archiveMissing archives pipeline problems absent from the bundle, never seeded ones', async () => {
+        await post({ problems: [makeProblem(), makeProblem({ slug: 'second-problem', title: 'Second' })] });
+        await Problem.create({
+            slug: 'seeded-problem', title: 'Seeded', description: 'S'.repeat(220),
+            difficulty: 'Easy', tags: ['x'], starterCode: 'pass',
+        });
+
+        const res = await post({ problems: [makeProblem()], archiveMissing: true });
+        expect(res.body.archived).toBe(1);
+        expect((await Problem.findOne({ slug: 'second-problem' })).archivedAt).toBeTruthy();
+        expect((await Problem.findOne({ slug: 'seeded-problem' })).archivedAt).toBeNull();
+        expect((await Problem.findOne({ slug: 'sample-problem' })).archivedAt).toBeNull();
+    });
+});
