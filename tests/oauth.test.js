@@ -69,7 +69,7 @@ describe('GET /api/auth/oauth/:provider/callback', () => {
 
         const res = await agent.get(`/api/auth/oauth/google/callback?code=real-code&state=${state}`);
         expect(res.status).toBe(302);
-        expect(res.headers.location).toBe(`${FRONTEND}/`);
+        expect(res.headers.location).toBe(`${FRONTEND}/problems`);
 
         const cookies = res.headers['set-cookie'].join(';');
         expect(cookies).toMatch(/katalume_session=/);

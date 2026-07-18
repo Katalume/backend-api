@@ -64,7 +64,10 @@ exports.callback = async (req, res) => {
         const user = await oauthService.findOrCreateOAuthUser(profile, provider);
         const tokens = await createSession(user, req);
         setSessionCookies(res, tokens);
-        return res.redirect(appRedirect('/'));
+        // Land on a protected route so the server validates the new session
+        // before rendering. Redirecting to the public homepage can briefly
+        // show the signed-out landing shell while the client session loads.
+        return res.redirect(appRedirect('/problems'));
     } catch (err) {
         const reason = err && err.code === 'OAUTH_EMAIL_UNVERIFIED' ? 'oauth_email' : 'oauth_failed';
         return res.redirect(appRedirect(`/login?error=${reason}`));
