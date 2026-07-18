@@ -44,3 +44,16 @@ services:
         sync: false
       - key: GITHUB_CLIENT_SECRET
         sync: false
+      # Billing ships dark. Activation is a separate, ordered production change.
+      - key: BILLING_ENABLED
+        value: "false"
+      - key: CHECKOUT_ENABLED
+        value: "false"
+      - key: BILLING_WEBHOOK_PROCESSING_ENABLED
+        value: "false"
+      - key: PAID_ENTITLEMENTS_ENFORCED
+        value: "false"
+      - key: BILLING_PROVIDER
+        value: disabled
+      - key: BILLING_ENVIRONMENT
+        value: sandbox

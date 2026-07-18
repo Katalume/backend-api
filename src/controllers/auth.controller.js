@@ -231,14 +231,33 @@ exports.changePassword = async (req, res) => {
 exports.exportAccount = async (req, res) => {
     const Submission = require('../models/Submission');
     const Contest = require('../models/Contest');
-    const [user, submissions, contests] = await Promise.all([
+    const BillingCustomer = require('../models/BillingCustomer');
+    const BillingSubscription = require('../models/BillingSubscription');
+    const BillingPurchase = require('../models/BillingPurchase');
+    const EntitlementGrant = require('../models/EntitlementGrant');
+    const [user, submissions, contests, billingCustomers, billingSubscriptions, billingPurchases, entitlementGrants] = await Promise.all([
         User.findById(req.user.id).select('-password').lean(),
         Submission.find({ userId: req.user.id }).sort({ createdAt: -1 }).lean(),
         Contest.find({ participants: req.user.id }).select('title startTime endTime').lean(),
+        BillingCustomer.find({ userId: req.user.id }).lean(),
+        BillingSubscription.find({ userId: req.user.id }).sort({ createdAt: -1 }).lean(),
+        BillingPurchase.find({ userId: req.user.id }).sort({ createdAt: -1 }).lean(),
+        EntitlementGrant.find({ userId: req.user.id }).sort({ createdAt: -1 }).lean(),
     ]);
     if (!user) return res.status(404).json({ message: 'User not found' });
     res.set('Content-Disposition', 'attachment; filename="katalume-account-export.json"');
-    return res.json({ exportedAt: new Date().toISOString(), user, submissions, contests });
+    return res.json({
+        exportedAt: new Date().toISOString(),
+        user,
+        submissions,
+        contests,
+        billing: {
+            customers: billingCustomers,
+            subscriptions: billingSubscriptions,
+            purchases: billingPurchases,
+            entitlementGrants,
+        },
+    });
 };
 
 exports.deleteAccount = async (req, res) => {
@@ -247,7 +266,14 @@ exports.deleteAccount = async (req, res) => {
     if (!user || typeof password !== 'string' || !(await bcrypt.compare(password, user.password))) {
         return res.status(401).json({ message: 'Password confirmation failed' });
     }
-    await require('../services/account.service').deleteUserData(user._id);
+    try {
+        await require('../services/account.service').deleteUserData(user._id);
+    } catch (error) {
+        return res.status(error.status || 500).json({
+            code: error.code || 'ACCOUNT_DELETION_FAILED',
+            message: error.status ? error.message : 'Account deletion is temporarily unavailable.',
+        });
+    }
     const options = clearCookieOptions();
     res.clearCookie(SESSION_COOKIE, options);
     res.clearCookie(ACCESS_COOKIE, options);

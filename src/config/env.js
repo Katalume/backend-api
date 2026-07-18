@@ -44,6 +44,48 @@ function positiveInt(name, fallback, { min = 1, max = Number.MAX_SAFE_INTEGER } 
     return parsed;
 }
 
+function booleanValue(name, fallback = false) {
+    const raw = process.env[name];
+    if (raw === undefined || raw === '') return fallback;
+    if (raw !== 'true' && raw !== 'false') {
+        throw new Error(`${name} must be either true or false`);
+    }
+    return raw === 'true';
+}
+
+const BILLING_ENABLED = booleanValue('BILLING_ENABLED', false);
+const CHECKOUT_ENABLED = booleanValue('CHECKOUT_ENABLED', false);
+const BILLING_WEBHOOK_PROCESSING_ENABLED = booleanValue('BILLING_WEBHOOK_PROCESSING_ENABLED', false);
+const PAID_ENTITLEMENTS_ENFORCED = booleanValue('PAID_ENTITLEMENTS_ENFORCED', false);
+const BILLING_PROVIDER = (process.env.BILLING_PROVIDER || 'disabled').toLowerCase();
+const BILLING_ENVIRONMENT = (process.env.BILLING_ENVIRONMENT || 'sandbox').toLowerCase();
+if (!['disabled', 'cashfree'].includes(BILLING_PROVIDER)) {
+    throw new Error('BILLING_PROVIDER must be disabled or cashfree');
+}
+if (!['sandbox', 'production'].includes(BILLING_ENVIRONMENT)) {
+    throw new Error('BILLING_ENVIRONMENT must be sandbox or production');
+}
+if ((BILLING_ENABLED || CHECKOUT_ENABLED || BILLING_WEBHOOK_PROCESSING_ENABLED)
+    && BILLING_PROVIDER !== 'cashfree') {
+    throw new Error('Billing flags require BILLING_PROVIDER=cashfree');
+}
+if (CHECKOUT_ENABLED && !BILLING_ENABLED) {
+    throw new Error('CHECKOUT_ENABLED requires BILLING_ENABLED=true');
+}
+if (BILLING_WEBHOOK_PROCESSING_ENABLED && !BILLING_ENABLED) {
+    throw new Error('BILLING_WEBHOOK_PROCESSING_ENABLED requires BILLING_ENABLED=true');
+}
+if (BILLING_ENABLED && (
+    !process.env.CASHFREE_CLIENT_ID
+    || !process.env.CASHFREE_CLIENT_SECRET
+    || !process.env.BILLING_WEBHOOK_URL
+)) {
+    throw new Error(
+        'CASHFREE_CLIENT_ID, CASHFREE_CLIENT_SECRET, and BILLING_WEBHOOK_URL '
+        + 'are required when BILLING_ENABLED=true'
+    );
+}
+
 const corsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173')
     .split(',')
     .map((s) => s.trim())
@@ -109,4 +151,13 @@ module.exports = {
     // Service token for the ml-problems content pipeline (POST /api/import/problems).
     // The endpoint is disabled (503) until this is set.
     PROBLEMS_IMPORT_TOKEN: process.env.PROBLEMS_IMPORT_TOKEN || '',
+    BILLING_ENABLED,
+    CHECKOUT_ENABLED,
+    BILLING_WEBHOOK_PROCESSING_ENABLED,
+    PAID_ENTITLEMENTS_ENFORCED,
+    BILLING_PROVIDER,
+    BILLING_ENVIRONMENT,
+    CASHFREE_CLIENT_ID: process.env.CASHFREE_CLIENT_ID || '',
+    CASHFREE_CLIENT_SECRET: process.env.CASHFREE_CLIENT_SECRET || '',
+    BILLING_WEBHOOK_URL: process.env.BILLING_WEBHOOK_URL || '',
 };

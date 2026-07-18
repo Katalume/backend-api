@@ -9,8 +9,8 @@ rigor meets Kaggle depth.
 The name combines **kata**, deliberate practice that forges mastery, with
 **lume**, light or illumination—the moment a hard problem clicks.
 
-This service handles auth, versioned problem content, progress, contests, and
-leaderboards. Server judging through [Judge0](https://judge0.com/) is an
+This service handles auth, versioned problem content, progress, contests,
+provider-neutral entitlements, Cashfree billing, and leaderboards. Server judging through [Judge0](https://judge0.com/) is an
 optional upgrade; the zero-cost beta deliberately disables it and uses the
 frontend's local practice worker.
 
@@ -57,10 +57,9 @@ ADMIN_EMAIL=you@example.com ADMIN_USERNAME=admin ADMIN_PASSWORD='a-strong-passwo
   node scripts/seedAdmin.js
 ```
 
-The deterministic launch catalog contains 126 problems (42 Easy, 42 Medium,
-42 Hard) and 3,486 cases. Easy problems have 8 cases, Medium 25, and Hard 50.
-Regenerate both backend and frontend copies with `npm run catalog:generate`;
-the test suite rejects generator drift and verifies idempotent version swaps.
+The live launch catalog contains 198 problems. Repository-managed additions
+arrive through the authenticated content-import pipeline, while the legacy
+deterministic bundle remains available for local mock development.
 
 ## API overview
 
@@ -69,6 +68,7 @@ the test suite rejects generator drift and verifies idempotent version swaps.
 | Auth | `/api/auth` | signup, login, refresh, logout (rate limited) |
 | Users | `/api/users` | `me`, plus admin/owner-scoped user management |
 | Problems | `/api/problems` | public list + fetch by slug |
+| Billing | `/api/billing` | offers, verified summary, hosted checkout, cancellation and signed webhooks |
 | Runner | `/api/runner` | queue/poll sample/custom execution jobs |
 | Submissions | `/api/submissions` | idempotent queue, status, history and cancellation |
 | Contests | `/api/contests` | contest CRUD + registration |
@@ -93,6 +93,14 @@ tests never execute real untrusted code. Coverage includes rotation/reuse,
 authorization, input guards, Judge0 polling/resources, durable job failure
 recovery, idempotency, contests, migrations/seeds, audit and account lifecycle.
 CI runs the suite and enforced thresholds on every push/PR to `main`.
+
+## Billing safety
+
+Billing and paid enforcement default to off. Cashfree API credentials and its
+webhook secret are backend-only. Checkout redirects never grant access:
+subscriptions and Lumus purchases become usable only after a valid, replay-safe
+Cashfree webhook updates the internal entitlement ledger. See `.env.example`
+for the ordered feature flags.
 
 ## Docker
 
