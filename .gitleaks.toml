@@ -1,0 +1,9 @@
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Public Katalume billing offer identifiers"
+regexTarget = "match"
+regexes = [
+  '''offerKey:\s*['"]plus_(weekly|monthly|yearly)_in_v1['"]''',
+]

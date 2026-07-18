@@ -217,6 +217,9 @@ exports.deleteUser = async (req, res) => {
         await require('../services/account.service').deleteUserData(user._id);
         res.json({ message: 'User deleted' });
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        res.status(err.status || 500).json({
+            code: err.code || 'ACCOUNT_DELETION_FAILED',
+            message: err.status ? err.message : 'Account deletion is temporarily unavailable.',
+        });
     }
 };

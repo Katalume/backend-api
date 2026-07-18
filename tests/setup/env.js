@@ -13,3 +13,13 @@ process.env.OAUTH_CALLBACK_BASE_URL = 'https://api.test.katalume.dev';
 process.env.FRONTEND_URL = 'https://app.test.katalume.dev';
 // Enable the content-import endpoint for its test suite.
 process.env.PROBLEMS_IMPORT_TOKEN = 'test-import-token-0123456789abcdef';
+// Billing runs against mocked Cashfree HTTP calls in its dedicated suite.
+process.env.BILLING_ENABLED = 'true';
+process.env.CHECKOUT_ENABLED = 'true';
+process.env.BILLING_WEBHOOK_PROCESSING_ENABLED = 'true';
+process.env.PAID_ENTITLEMENTS_ENFORCED = 'false';
+process.env.BILLING_PROVIDER = 'cashfree';
+process.env.BILLING_ENVIRONMENT = 'sandbox';
+process.env.CASHFREE_CLIENT_ID = 'test-cashfree-client';
+process.env.CASHFREE_CLIENT_SECRET = 'test-cashfree-secret';
+process.env.BILLING_WEBHOOK_URL = 'https://api.test.katalume.dev/api/billing/webhooks/cashfree';

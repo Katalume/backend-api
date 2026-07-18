@@ -16,6 +16,11 @@ const indexedModels = [
     require('../src/models/EvaluationJob'),
     require('../src/models/LearningTrack'),
     require('../src/models/AuditEvent'),
+    require('../src/models/BillingCustomer'),
+    require('../src/models/BillingSubscription'),
+    require('../src/models/BillingPurchase'),
+    require('../src/models/EntitlementGrant'),
+    require('../src/models/BillingWebhookEvent'),
 ];
 
 async function deduplicateLeaderboards() {

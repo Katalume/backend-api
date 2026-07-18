@@ -4,6 +4,11 @@ const Submission = require('../models/Submission');
 const { slugify, generateUniqueSlug } = require('../utils/slug');
 const { sendMongooseError } = require('../utils/mongoErrors');
 const logger = require('../utils/logger');
+const {
+  annotateProblemAccess,
+  canAccessProblem,
+  isFreeProblem,
+} = require('../billing/entitlement.service');
 
 function testcasesAreInvalid(testcases) {
   return testcases !== undefined && (
@@ -228,7 +233,7 @@ exports.getProblems = async (req, res) => {
       }
     }
 
-    res.json(problems);
+    res.json(await annotateProblemAccess(problems, req.user?.id));
   } catch (error) {
     res.status(500).json({ message: 'Server error' });
   }
@@ -241,6 +246,13 @@ exports.getPracticeTestcases = async (req, res) => {
       archivedAt: null,
     }).select('_id slug testcaseVersion').lean();
     if (!problem) return res.status(404).json({ message: 'Problem not found' });
+    if (!await canAccessProblem(req.user?.id, problem.slug)) {
+      return res.status(402).json({
+        code: 'PLUS_REQUIRED',
+        message: 'Katalume Plus or Lumus is required for this problem.',
+        upgradeUrl: '/pricing',
+      });
+    }
 
     // Browser practice is intentionally non-adversarial: the current free-beta
     // runner already receives its full deterministic suite client-side. Serving
@@ -270,6 +282,13 @@ exports.getProblemBySlug = async (req, res) => {
   try {
     const problem = await Problem.findOne({ slug: req.params.slug, archivedAt: null });
     if (!problem) return res.status(404).json({ message: 'Problem not found' });
+    if (!await canAccessProblem(req.user?.id, problem.slug)) {
+      return res.status(402).json({
+        code: 'PLUS_REQUIRED',
+        message: 'Katalume Plus or Lumus is required for this problem.',
+        upgradeUrl: '/pricing',
+      });
+    }
 
     // Surface how many hidden test cases exist without leaking their contents.
     const hiddenTestCount = await Testcase.countDocuments({
@@ -278,7 +297,12 @@ exports.getProblemBySlug = async (req, res) => {
       isPublic: false,
     });
 
-    const result = { ...problem.toObject(), hiddenTestCount };
+    const result = {
+      ...problem.toObject(),
+      hiddenTestCount,
+      accessTier: isFreeProblem(problem.slug) ? 'free' : 'plus',
+      locked: false,
+    };
     const isAdmin = req.user?.roles?.includes('Admin');
     const hasAccepted = req.user && await Submission.exists({
       userId: req.user.id,

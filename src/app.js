@@ -31,8 +31,17 @@ app.use(helmet());
 // its own parser and auth runs before any body is read.
 app.use('/api/import', require('./routes/import.routes'));
 
-// Body parsing with a size limit to bound request payloads
-app.use(express.json({ limit: '100kb' }));
+// Body parsing with a size limit to bound request payloads. Cashfree signs the
+// exact bytes, including decimal formatting, so preserve only that route's raw
+// body for signature verification before using the parsed payload.
+app.use(express.json({
+    limit: '100kb',
+    verify: (req, res, buffer) => {
+        if (req.originalUrl.split('?')[0] === '/api/billing/webhooks/cashfree') {
+            req.rawBody = buffer.toString('utf8');
+        }
+    },
+}));
 app.use(cookieParser());
 
 // Correlate client errors, logs, and traces without exposing internals.
@@ -109,6 +118,7 @@ app.use('/api/contests', contestRoutes);
 app.use('/api/profile', require('./routes/profile.routes'));
 app.use('/api/leaderboard', require('./routes/leaderboard.routes'));
 app.use('/api/learn', require('./routes/learn.routes'));
+app.use('/api/billing', require('./routes/billing.routes'));
 app.use('/api/admin', adminRoutes);
 
 // 404 handler

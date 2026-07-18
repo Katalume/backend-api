@@ -45,4 +45,31 @@ const executionLimiter = rateLimit({
     message: message('Too many code executions, please slow down.'),
 });
 
-module.exports = { apiLimiter, authLimiter, executionLimiter };
+const billingCheckoutLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 10,
+    standardHeaders: 'draft-8',
+    legacyHeaders: false,
+    skip,
+    store: store('billing-checkout'),
+    keyGenerator: (req) => req.user.id,
+    message: message('Too many billing requests, please try again later.'),
+});
+
+const billingWebhookLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    limit: 180,
+    standardHeaders: 'draft-8',
+    legacyHeaders: false,
+    skip,
+    store: store('billing-webhook'),
+    message: message('Webhook rate limit exceeded.'),
+});
+
+module.exports = {
+    apiLimiter,
+    authLimiter,
+    executionLimiter,
+    billingCheckoutLimiter,
+    billingWebhookLimiter,
+};
