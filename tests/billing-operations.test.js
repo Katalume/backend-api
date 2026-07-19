@@ -1,11 +1,15 @@
 const request = require('supertest');
 const axios = require('axios');
+const mongoose = require('mongoose');
 const app = require('../src/app');
 const User = require('../src/models/User');
 const BillingCustomer = require('../src/models/BillingCustomer');
 const BillingSubscription = require('../src/models/BillingSubscription');
+const BillingPurchase = require('../src/models/BillingPurchase');
 const BillingTransaction = require('../src/models/BillingTransaction');
 const BillingOperationalAlert = require('../src/models/BillingOperationalAlert');
+const BillingWebhookEvent = require('../src/models/BillingWebhookEvent');
+const EntitlementGrant = require('../src/models/EntitlementGrant');
 
 jest.mock('axios');
 
@@ -158,5 +162,119 @@ describe('billing receipts and owner operations', () => {
             .get('/api/admin/billing/overview')
             .set('Authorization', `Bearer ${user.token}`);
         expect(response.status).toBe(403);
+    });
+
+    test('surfaces provider drift, provider failure, orphan grants, bad webhooks, and receipt gaps without auto-repair', async () => {
+        const token = await adminToken();
+        const user = await signup('drift-user', 'drift-user@example.com');
+        const customer = await BillingCustomer.create({
+            userId: user.userId,
+            provider: 'cashfree',
+            billingName: 'Drift User',
+            billingEmail: 'drift-user@example.com',
+            billingPhone: '9876543210',
+        });
+        const subscription = await BillingSubscription.create({
+            userId: user.userId,
+            billingCustomerId: customer._id,
+            offerKey: MONTHLY_OFFER,
+            offerSnapshot: offerSnapshot(),
+            provider: 'cashfree',
+            providerSubscriptionId: 'katalume_sub_provider_drift',
+            checkoutSessionId: 'subscription-session-drift',
+            status: 'active',
+            currentPeriodStart: new Date(),
+            currentPeriodEnd: new Date(Date.now() + 30 * 86400000),
+        });
+        await EntitlementGrant.create({
+            userId: user.userId,
+            tier: 'plus',
+            benefits: ['all_problems'],
+            sourceType: 'subscription',
+            sourceId: subscription._id,
+            startsAt: new Date(),
+            status: 'active',
+        });
+        await BillingSubscription.create({
+            userId: user.userId,
+            billingCustomerId: customer._id,
+            offerKey: MONTHLY_OFFER,
+            offerSnapshot: offerSnapshot(),
+            provider: 'cashfree',
+            providerSubscriptionId: 'katalume_sub_lookup_failure',
+            checkoutSessionId: 'subscription-session-failure',
+            status: 'pending',
+        });
+        const purchase = await BillingPurchase.create({
+            userId: user.userId,
+            billingCustomerId: customer._id,
+            offerKey: 'lumus',
+            offerSnapshot: { ...offerSnapshot(), name: 'Lumus', cadence: 'lifetime', amountMinor: 499900 },
+            provider: 'cashfree',
+            providerOrderId: 'katalume_order_receipt_gap',
+            providerPaymentId: 'cf-payment-receipt-gap',
+            checkoutSessionId: 'purchase-session',
+            status: 'captured',
+            capturedAt: new Date(),
+        });
+        await EntitlementGrant.create({
+            userId: user.userId,
+            tier: 'lumus',
+            benefits: ['all_problems'],
+            sourceType: 'purchase',
+            sourceId: purchase._id,
+            startsAt: new Date(),
+            status: 'active',
+        });
+        await EntitlementGrant.create({
+            userId: user.userId,
+            tier: 'plus',
+            benefits: ['all_problems'],
+            sourceType: 'subscription',
+            sourceId: new mongoose.Types.ObjectId(),
+            startsAt: new Date(),
+            status: 'active',
+        });
+        await BillingWebhookEvent.create([
+            {
+                provider: 'cashfree',
+                providerEventId: 'failed-event',
+                eventType: 'PAYMENT_SUCCESS_WEBHOOK',
+                payloadHash: 'a'.repeat(64),
+                status: 'failed',
+                errorCode: 'TEST_FAILURE',
+            },
+            {
+                provider: 'cashfree',
+                providerEventId: 'stale-event',
+                eventType: 'SUBSCRIPTION_PAYMENT_SUCCESS',
+                payloadHash: 'b'.repeat(64),
+                status: 'processing',
+                processingStartedAt: new Date(Date.now() - 10 * 60 * 1000),
+            },
+        ]);
+        axios.get.mockImplementation((url) => {
+            if (url.includes('lookup_failure')) return Promise.reject(Object.assign(new Error('timeout'), { code: 'ETIMEDOUT' }));
+            if (url.includes('/orders/')) return Promise.resolve({ data: { order_status: 'PAID' } });
+            return Promise.resolve({ data: { subscription_status: 'CANCELLED' } });
+        });
+
+        const run = await request(app)
+            .post('/api/admin/billing/reconcile')
+            .set('Authorization', `Bearer ${token}`)
+            .send({});
+        expect(run.status).toBe(201);
+        expect(run.body.providerErrors).toBe(1);
+        const kinds = await BillingOperationalAlert.distinct('kind', { status: 'open' });
+        expect(kinds).toEqual(expect.arrayContaining([
+            'provider_state_drift',
+            'provider_lookup_failed',
+            'orphan_entitlement',
+            'failed_webhook',
+            'stale_webhook',
+        ]));
+        expect(await BillingTransaction.findOne({ providerPaymentId: 'cf-payment-receipt-gap' }).lean())
+            .toMatchObject({ sourceType: 'purchase', status: 'captured' });
+        expect((await EntitlementGrant.find({ userId: user.userId, status: 'active' })).length).toBe(3);
     });
 });
