@@ -10,7 +10,7 @@ const logger = require('../utils/logger');
 router.post(
     '/problems',
     importAuth,
-    express.json({ limit: '25mb' }),
+    express.json({ limit: '50mb' }),
     async (req, res) => {
         try {
             const summary = await importProblems(req.body);
