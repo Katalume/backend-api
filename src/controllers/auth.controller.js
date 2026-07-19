@@ -234,14 +234,25 @@ exports.exportAccount = async (req, res) => {
     const BillingCustomer = require('../models/BillingCustomer');
     const BillingSubscription = require('../models/BillingSubscription');
     const BillingPurchase = require('../models/BillingPurchase');
+    const BillingTransaction = require('../models/BillingTransaction');
     const EntitlementGrant = require('../models/EntitlementGrant');
-    const [user, submissions, contests, billingCustomers, billingSubscriptions, billingPurchases, entitlementGrants] = await Promise.all([
+    const [
+        user,
+        submissions,
+        contests,
+        billingCustomers,
+        billingSubscriptions,
+        billingPurchases,
+        billingTransactions,
+        entitlementGrants,
+    ] = await Promise.all([
         User.findById(req.user.id).select('-password').lean(),
         Submission.find({ userId: req.user.id }).sort({ createdAt: -1 }).lean(),
         Contest.find({ participants: req.user.id }).select('title startTime endTime').lean(),
         BillingCustomer.find({ userId: req.user.id }).lean(),
         BillingSubscription.find({ userId: req.user.id }).sort({ createdAt: -1 }).lean(),
         BillingPurchase.find({ userId: req.user.id }).sort({ createdAt: -1 }).lean(),
+        BillingTransaction.find({ userId: req.user.id }).sort({ occurredAt: -1 }).lean(),
         EntitlementGrant.find({ userId: req.user.id }).sort({ createdAt: -1 }).lean(),
     ]);
     if (!user) return res.status(404).json({ message: 'User not found' });
@@ -255,6 +266,7 @@ exports.exportAccount = async (req, res) => {
             customers: billingCustomers,
             subscriptions: billingSubscriptions,
             purchases: billingPurchases,
+            transactions: billingTransactions,
             entitlementGrants,
         },
     });

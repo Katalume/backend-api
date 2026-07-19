@@ -19,6 +19,22 @@ exports.summary = async (req, res) => {
     }
 };
 
+exports.receipts = async (req, res) => {
+    try {
+        return res.json(await billing.billingReceipts(req.user.id));
+    } catch (error) {
+        return sendError(res, error);
+    }
+};
+
+exports.receipt = async (req, res) => {
+    try {
+        return res.json(await billing.billingReceipt(req.user.id, req.params.id));
+    } catch (error) {
+        return sendError(res, error);
+    }
+};
+
 exports.checkout = async (req, res) => {
     try {
         const result = await billing.createCheckout({

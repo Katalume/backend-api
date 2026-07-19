@@ -21,6 +21,9 @@ const indexedModels = [
     require('../src/models/BillingPurchase'),
     require('../src/models/EntitlementGrant'),
     require('../src/models/BillingWebhookEvent'),
+    require('../src/models/BillingTransaction'),
+    require('../src/models/BillingOperationalAlert'),
+    require('../src/models/BillingReconciliationRun'),
 ];
 
 async function deduplicateLeaderboards() {

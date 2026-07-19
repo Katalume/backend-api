@@ -1,9 +1,11 @@
 const crypto = require('crypto');
+const mongoose = require('mongoose');
 const User = require('../models/User');
 const BillingCustomer = require('../models/BillingCustomer');
 const BillingSubscription = require('../models/BillingSubscription');
 const BillingPurchase = require('../models/BillingPurchase');
 const BillingWebhookEvent = require('../models/BillingWebhookEvent');
+const BillingTransaction = require('../models/BillingTransaction');
 const EntitlementGrant = require('../models/EntitlementGrant');
 const { getOffer, OFFERS, publicOffer } = require('../config/billingOffers');
 const {
@@ -216,6 +218,30 @@ function addCadence(start, cadence) {
     return end;
 }
 
+async function recordCapturedTransaction(sourceType, source, providerPaymentId, providerEventId, occurredAt) {
+    return BillingTransaction.findOneAndUpdate(
+        { provider: 'cashfree', providerPaymentId: String(providerPaymentId) },
+        {
+            $setOnInsert: {
+                userId: source.userId,
+                billingCustomerId: source.billingCustomerId,
+                sourceType,
+                sourceId: source._id,
+                offerKey: source.offerKey,
+                offerSnapshot: source.offerSnapshot,
+                provider: 'cashfree',
+                providerPaymentId: String(providerPaymentId),
+                providerEventId: providerEventId || '',
+                amountMinor: source.offerSnapshot.amountMinor,
+                currency: source.offerSnapshot.currency,
+                status: 'captured',
+                occurredAt,
+            },
+        },
+        { upsert: true, returnDocument: 'after', runValidators: true }
+    );
+}
+
 async function syncSubscriptionGrant(subscription) {
     await EntitlementGrant.findOneAndUpdate(
         { sourceType: 'subscription', sourceId: subscription._id, status: 'active' },
@@ -367,6 +393,13 @@ async function processWebhook(payload, headers, rawBody) {
                     throw new BillingError(409, 'PAYMENT_AMOUNT_MISMATCH', 'Subscription payment mismatch.');
                 }
                 await grantSubscription(subscription, String(details.cf_payment_id), occurredAt);
+                await recordCapturedTransaction(
+                    'subscription',
+                    subscription,
+                    details.cf_payment_id,
+                    record.providerEventId,
+                    occurredAt
+                );
             }
             record.resourceId = details.subscription_id;
         } else if (payload.type === 'SUBSCRIPTION_PAYMENT_FAILED') {
@@ -412,7 +445,27 @@ async function processWebhook(payload, headers, rawBody) {
                 || actual !== expected) {
                 throw new BillingError(409, 'PAYMENT_AMOUNT_MISMATCH', 'Purchase payment mismatch.');
             }
-            await grantLifetime(purchase, payment.cf_payment_id, occurredAt);
+            const transaction = await recordCapturedTransaction(
+                'purchase',
+                purchase,
+                payment.cf_payment_id,
+                record.providerEventId,
+                occurredAt
+            );
+            if (purchase.status === 'refunded') {
+                await BillingTransaction.updateOne(
+                    { _id: transaction._id },
+                    {
+                        $set: {
+                            status: 'refunded',
+                            refundedMinor: purchase.offerSnapshot.amountMinor,
+                            refundedAt: purchase.refundedAt || occurredAt,
+                        },
+                    }
+                );
+            } else {
+                await grantLifetime(purchase, payment.cf_payment_id, occurredAt);
+            }
             record.resourceId = order.order_id;
         } else if (payload.type === 'REFUND_STATUS_WEBHOOK') {
             const refund = payload.data?.refund || {};
@@ -423,11 +476,24 @@ async function processWebhook(payload, headers, rawBody) {
                 && refund.refund_currency === purchase.offerSnapshot.currency
                 && refundedMinor >= purchase.offerSnapshot.amountMinor) {
                 purchase.status = 'refunded';
+                if (!purchase.providerPaymentId && refund.cf_payment_id) {
+                    purchase.providerPaymentId = String(refund.cf_payment_id);
+                }
                 purchase.refundedAt = occurredAt;
                 await purchase.save();
                 await EntitlementGrant.updateMany(
                     { sourceType: 'purchase', sourceId: purchase._id, status: 'active' },
                     { $set: { status: 'revoked', endsAt: occurredAt, reason: 'Verified Cashfree full refund' } }
+                );
+                await BillingTransaction.updateOne(
+                    { provider: 'cashfree', providerPaymentId: String(purchase.providerPaymentId) },
+                    {
+                        $set: {
+                            status: 'refunded',
+                            refundedMinor,
+                            refundedAt: occurredAt,
+                        },
+                    }
                 );
             }
             record.resourceId = refund.order_id || '';
@@ -464,6 +530,49 @@ async function cancelSubscription({ userId, subscriptionId, idempotencyKey, requ
     return billingSummary(userId);
 }
 
+function publicReceipt(transaction) {
+    return {
+        id: String(transaction._id),
+        documentKind: 'payment_receipt',
+        label: 'Payment receipt',
+        offerKey: transaction.offerKey,
+        offerName: transaction.offerSnapshot?.name || transaction.offerKey,
+        cadence: transaction.offerSnapshot?.cadence || null,
+        amountMinor: transaction.amountMinor,
+        currency: transaction.currency,
+        status: transaction.status,
+        occurredAt: transaction.occurredAt,
+        refundedMinor: transaction.refundedMinor || 0,
+        refundedAt: transaction.refundedAt || null,
+        providerPaymentReference: transaction.providerPaymentId,
+        taxStatus: transaction.taxSnapshot?.status || 'pending_legal_review',
+        isTaxInvoice: false,
+    };
+}
+
+async function billingReceipts(userId) {
+    const transactions = await BillingTransaction.find({ userId })
+        .sort({ occurredAt: -1 })
+        .limit(100)
+        .lean();
+    return {
+        receipts: transactions.map(publicReceipt),
+        notice: 'These are payment receipts, not GST tax invoices.',
+    };
+}
+
+async function billingReceipt(userId, transactionId) {
+    if (!mongoose.Types.ObjectId.isValid(transactionId)) {
+        throw new BillingError(404, 'RECEIPT_NOT_FOUND', 'Payment receipt not found.');
+    }
+    const transaction = await BillingTransaction.findOne({ _id: transactionId, userId }).lean();
+    if (!transaction) throw new BillingError(404, 'RECEIPT_NOT_FOUND', 'Payment receipt not found.');
+    return {
+        receipt: publicReceipt(transaction),
+        notice: 'This payment receipt is not a GST tax invoice.',
+    };
+}
+
 module.exports = {
     BillingError,
     listOffers,
@@ -471,4 +580,6 @@ module.exports = {
     createCheckout,
     processWebhook,
     cancelSubscription,
+    billingReceipts,
+    billingReceipt,
 };

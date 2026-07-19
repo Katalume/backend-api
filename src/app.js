@@ -140,6 +140,7 @@ app.use((err, req, res, next) => {
 // Start the server only after the database connection is established.
 async function start() {
     await Promise.all([connectDB(), connectRedis()]);
+    require('./billing/reconciliation.service').startReconciliationScheduler();
     const server = app.listen(BACKEND_PORT, () => {
         logger.info(`Katalume API running on port ${BACKEND_PORT}`);
     });
