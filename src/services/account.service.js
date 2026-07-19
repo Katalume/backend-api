@@ -9,6 +9,7 @@ const AuditEvent = require('../models/AuditEvent');
 const BillingCustomer = require('../models/BillingCustomer');
 const BillingSubscription = require('../models/BillingSubscription');
 const BillingPurchase = require('../models/BillingPurchase');
+const BillingTransaction = require('../models/BillingTransaction');
 const EntitlementGrant = require('../models/EntitlementGrant');
 const { BILLING_ENABLED, BILLING_PROVIDER } = require('../config/env');
 const cashfree = require('../billing/providers/cashfree.adapter');
@@ -56,6 +57,9 @@ async function deleteUserData(userId) {
             $set: { customerDeleted: true },
         }),
         BillingPurchase.updateMany({ userId }, {
+            $set: { customerDeleted: true },
+        }),
+        BillingTransaction.updateMany({ userId }, {
             $set: { customerDeleted: true },
         }),
     ]);

@@ -19,7 +19,7 @@ function headers(idempotencyKey, requestId) {
         'x-api-version': API_VERSION,
         'x-client-id': CASHFREE_CLIENT_ID,
         'x-client-secret': CASHFREE_CLIENT_SECRET,
-        'x-idempotency-key': idempotencyKey,
+        ...(idempotencyKey ? { 'x-idempotency-key': idempotencyKey } : {}),
         ...(requestId ? { 'x-request-id': requestId } : {}),
     };
 }
@@ -110,6 +110,22 @@ async function cancelSubscription(providerSubscriptionId, idempotencyKey, reques
     return response.data;
 }
 
+async function fetchSubscription(providerSubscriptionId, requestId) {
+    const response = await axios.get(
+        `${baseURL}/subscriptions/${encodeURIComponent(providerSubscriptionId)}`,
+        { headers: headers(null, requestId), timeout: 15000 }
+    );
+    return response.data;
+}
+
+async function fetchOrder(providerOrderId, requestId) {
+    const response = await axios.get(
+        `${baseURL}/orders/${encodeURIComponent(providerOrderId)}`,
+        { headers: headers(null, requestId), timeout: 15000 }
+    );
+    return response.data;
+}
+
 function verifyWebhook(rawBody, timestamp, signature, now = Date.now()) {
     if (!rawBody || !timestamp || !signature || !CASHFREE_CLIENT_SECRET) return false;
     const timestampMs = Number(timestamp);
@@ -126,6 +142,8 @@ module.exports = {
     createSubscription,
     createOrder,
     cancelSubscription,
+    fetchSubscription,
+    fetchOrder,
     verifyWebhook,
     environment: BILLING_ENVIRONMENT,
 };

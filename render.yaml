@@ -53,6 +53,12 @@ services:
         value: "false"
       - key: PAID_ENTITLEMENTS_ENFORCED
         value: "false"
+      - key: BILLING_RECONCILIATION_ENABLED
+        value: "false"
+      - key: BILLING_RECONCILIATION_INTERVAL_MINUTES
+        value: "60"
+      - key: BILLING_RECONCILIATION_BATCH_SIZE
+        value: "100"
       - key: BILLING_PROVIDER
         value: disabled
       - key: BILLING_ENVIRONMENT

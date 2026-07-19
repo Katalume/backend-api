@@ -7,6 +7,7 @@ const BillingWebhookEvent = require('../src/models/BillingWebhookEvent');
 const BillingPurchase = require('../src/models/BillingPurchase');
 const BillingCustomer = require('../src/models/BillingCustomer');
 const BillingSubscription = require('../src/models/BillingSubscription');
+const BillingTransaction = require('../src/models/BillingTransaction');
 const User = require('../src/models/User');
 const { problemAccessState } = require('../src/billing/entitlement.service');
 
@@ -139,6 +140,7 @@ describe('Cashfree checkout and signed webhook fulfillment', () => {
         expect(unchangedGrant.endsAt.getTime()).toBe(firstPeriodEnd);
         expect((await BillingSubscription.findOne({ userId }).lean()).processedPaymentIds)
             .toEqual(['cf-pay-1']);
+        expect(await BillingTransaction.countDocuments({ userId, providerPaymentId: 'cf-pay-1' })).toBe(1);
     });
 
     test('creates Lumus as a one-time order and processes duplicate events once', async () => {
@@ -181,6 +183,11 @@ describe('Cashfree checkout and signed webhook fulfillment', () => {
         expect(grant).toMatchObject({ tier: 'lumus', sourceType: 'purchase' });
         expect(grant.endsAt).toBeNull();
         expect(await BillingWebhookEvent.countDocuments({ providerEventId: eventId })).toBe(1);
+        expect(await BillingTransaction.countDocuments({
+            userId,
+            providerPaymentId: 'cf-lifetime-payment',
+            status: 'captured',
+        })).toBe(1);
 
         const refunded = await webhook({
             type: 'REFUND_STATUS_WEBHOOK',
@@ -200,6 +207,57 @@ describe('Cashfree checkout and signed webhook fulfillment', () => {
             .toMatchObject({ status: 'refunded' });
         expect(await EntitlementGrant.findOne({ userId }).lean())
             .toMatchObject({ tier: 'lumus', status: 'revoked' });
+        expect(await BillingTransaction.findOne({ userId }).lean())
+            .toMatchObject({ status: 'refunded', refundedMinor: 499900 });
+    });
+
+    test('does not re-grant Lumus when a delayed success arrives after its refund', async () => {
+        const { token, userId } = await signup();
+        axios.post.mockResolvedValueOnce({
+            data: {
+                order_id: 'katalume_order_out_of_order',
+                cf_order_id: 'cf-order-out-of-order',
+                payment_session_id: 'payment_session_out_of_order',
+                order_status: 'ACTIVE',
+            },
+        });
+        await request(app)
+            .post('/api/billing/checkouts')
+            .set('Authorization', `Bearer ${token}`)
+            .set('Idempotency-Key', '44444444-4444-4444-8444-444444444444')
+            .send({ offerKey: 'lumus_lifetime_in_v1', phone: '9876543210' });
+
+        expect((await webhook({
+            type: 'REFUND_STATUS_WEBHOOK',
+            event_time: new Date().toISOString(),
+            data: {
+                refund: {
+                    order_id: 'katalume_order_out_of_order',
+                    cf_payment_id: 'cf-payment-out-of-order',
+                    refund_amount: 4999,
+                    refund_currency: 'INR',
+                    refund_status: 'SUCCESS',
+                },
+            },
+        })).status).toBe(200);
+
+        expect((await webhook({
+            type: 'PAYMENT_SUCCESS_WEBHOOK',
+            event_time: new Date().toISOString(),
+            data: {
+                order: { order_id: 'katalume_order_out_of_order' },
+                payment: {
+                    cf_payment_id: 'cf-payment-out-of-order',
+                    payment_status: 'SUCCESS',
+                    payment_amount: 4999,
+                    payment_currency: 'INR',
+                },
+            },
+        })).status).toBe(200);
+
+        expect(await EntitlementGrant.countDocuments({ userId, status: 'active' })).toBe(0);
+        expect(await BillingTransaction.findOne({ userId }).lean())
+            .toMatchObject({ status: 'refunded', refundedMinor: 499900 });
     });
 
     test('rejects tampered signatures and amount mismatches without granting access', async () => {
